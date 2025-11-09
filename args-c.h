@@ -215,8 +215,8 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
                 struct ac_option *const option = &options[options_idx];
 
                 // Find the option that this maps to in the command spec.
-                for(size_t i = 0; i < command->n_options; i++) {
-                    struct ac_option_spec const *const option_spec = &command->options[i];
+                for(size_t j = 0; j < command->n_options; j++) {
+                    struct ac_option_spec const *const option_spec = &command->options[j];
                     if(tags[i] == TAG_SHORT_OPTION) {
                         if(option_spec->has_short_name && option_spec->short_name == value[1]) {
                             option->option = option_spec;

@@ -27,6 +27,14 @@
         }                                                                                          \
     } while(false)
 
+#define assert_ptr_neq(real, expected)                                                              \
+    do {                                                                                           \
+        if((real) == (expected)) {                                                                 \
+            printf("expected ptr %p not to be %p\n", (real), (expected));                            \
+            assert(false);                                                                         \
+        }                                                                                          \
+    } while(false)
+
 #define assert_str_eq(real, expected)                                                              \
     do {                                                                                           \
         if(0 != strcmp(real, expected)) {                                                          \
@@ -72,7 +80,7 @@ static void test_command_1() {
 }
 
 static struct ac_command_spec const command2 = {.help      = "Testing command 2.",
-                                                .n_options = 3,
+                                                .n_options = 2,
                                                 .options   = (struct ac_option_spec[]) {
                                                     {
                                                           .long_name      = "apple",
@@ -86,11 +94,7 @@ static struct ac_command_spec const command2 = {.help      = "Testing command 2.
                                                           .has_short_name = true,
                                                           .short_name     = 'b',
                                                           .help = "change in the number of bananas",
-                                                    },
-                                                    {
-                                                          .long_name = "cherry",
-                                                          .help      = "the type of cherry",
-                                                    },
+                                                    }
                                                 }};
 
 static void test_command_2() {
@@ -114,9 +118,64 @@ static void test_command_2() {
     assert_ptr_eq(args.arguments, NULL);
     assert_ptr_eq(args.options, NULL);
 
+    char const *const argv3[] = {"--apple", "mmm"};
+    result  = ac_parse_command(2, argv3, &command2, &args);
+    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_ptr_eq(args.command, command_ptr);
+    assert_sizet_eq(args.n_arguments, 0UL);
+    assert_sizet_eq(args.n_options, 1UL);
+    assert_ptr_eq(args.arguments, NULL);
+    assert_ptr_neq(args.options, NULL);
+    assert_str_eq(args.options->value, "mmm");
+
+    char const *const argv4[] = {"-a", "mmm"};
+    result  = ac_parse_command(2, argv4, &command2, &args);
+    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_ptr_eq(args.command, command_ptr);
+    assert_sizet_eq(args.n_arguments, 0UL);
+    assert_sizet_eq(args.n_options, 1UL);
+    assert_ptr_eq(args.arguments, NULL);
+    assert_ptr_neq(args.options, NULL);
+    assert_str_eq(args.options->value, "mmm");
+
+    char const *const argv5[] = {"-a", "-b"};
+    result  = ac_parse_command(2, argv5, &command2, &args);
+    assert_int_eq(result, AC_ERROR_OPTION_VALUE_EXPECTED);
+    assert_ptr_eq(args.command, NULL);
+    assert_sizet_eq(args.n_arguments, 0UL);
+    assert_sizet_eq(args.n_options, 0UL);
+    assert_ptr_eq(args.arguments, NULL);
+    assert_ptr_eq(args.options, NULL);
+
+    char const *const argv6[] = {"-b", "bbb"};
+    result  = ac_parse_command(2, argv6, &command2, &args);
+    assert_int_eq(result, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
+    assert_ptr_eq(args.command, NULL);
+    assert_sizet_eq(args.n_arguments, 0UL);
+    assert_sizet_eq(args.n_options, 0UL);
+    assert_ptr_eq(args.arguments, NULL);
+    assert_ptr_eq(args.options, NULL);
+
+    char const *const argv7[] = {"--dragon", "dddd"};
+    result  = ac_parse_command(2, argv7, &command2, &args);
+    assert_int_eq(result, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
+    assert_ptr_eq(args.command, NULL);
+    assert_sizet_eq(args.n_arguments, 0UL);
+    assert_sizet_eq(args.n_options, 0UL);
+    assert_ptr_eq(args.arguments, NULL);
+    assert_ptr_eq(args.options, NULL);
+
+    char const *const argv8[] = {"", "dddd"};
+    result  = ac_parse_command(2, argv7, &command2, &args);
+    assert_int_eq(result, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
+    assert_ptr_eq(args.command, NULL);
+    assert_sizet_eq(args.n_arguments, 0UL);
+    assert_sizet_eq(args.n_options, 0UL);
+    assert_ptr_eq(args.arguments, NULL);
+    assert_ptr_eq(args.options, NULL);
 }
 
 int main() {
-    // test_command_1();
+    test_command_1();
     test_command_2();
 }
