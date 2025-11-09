@@ -16,7 +16,7 @@ enum ac_error {
     AC_ERROR_COMMAND_NAME_INVALID,
     AC_ERROR_TOO_MANY_COMMAND_NAMES,
     AC_ERROR_UNKNOWN_COMMAND_NAME,
-    AC_ERROR_EXPECTED_MORE_COMMANDS,
+    AC_ERROR_EXPECTED_MORE_COMMAND_NAMES,
     AC_ERROR_EXCEEDED_MAX_NUM_ARGS,
     AC_ERROR_EXPECTED_COMMAND_NAME,
     AC_ERROR_EXPECTED_VALUE,
@@ -41,31 +41,38 @@ struct ac_argument_spec {
     enum ac_argument_type type;
 };
 
+struct ac_command_spec {
+    char                    *help;
+
+    // optional values to assign context or uniqely identify this command.
+    size_t id;
+    void  *context;
+
+    size_t                   n_arguments;
+    struct ac_argument_spec arguments[];
+};
+
 enum ac_command_type {
     COMMAND_TERMINAL,
     COMMAND_PARENT,
 };
 
-struct ac_command_spec {
-    char *name;
-    char *help;
+struct ac_multicommand_spec {
+    size_t n_subcommands;
+    struct ac_multicommand_subcommand {
+        char                *name;
+        enum ac_command_type type;
+        union {
+            struct {
+                struct ac_command_spec *command;
+            } terminal;
 
-    size_t id;
-    void  *context;
-
-    enum ac_command_type type;
-
-    union {
-        struct {
-            size_t                   n_arguments;
-            struct ac_argument_spec *arguments;
-        } terminal;
-
-        struct {
-            size_t                  n_subcommands;
-            struct ac_command_spec *subcommands;
-        } parent;
-    };
+            struct {
+                char                        *help;
+                struct ac_multicommand_spec *subcommands;
+            } parent;
+        };
+    } subcommands[];
 };
 
 struct ac_argument {
@@ -97,37 +104,10 @@ static bool ac_string_is_alpha(char const *const target, size_t const length) {
     return true;
 }
 
-static struct ac_argument_spec const *
-find_argument_with_short_name(struct ac_command_spec const *const node, char const short_name) {
-    assert(node->type == COMMAND_TERMINAL);
-    for(size_t i = 0; i < node->terminal.n_arguments; i++) {
-        struct ac_argument_spec const *const arg = &node->terminal.arguments[i];
-        if(arg->has_short_name && arg->short_name == short_name) {
-            return arg;
-        }
-    }
-
-    return NULL;
-}
-
-static struct ac_argument_spec const *
-find_argument_with_long_name(struct ac_command_spec const *const node,
-                             char const *const                   long_name) {
-    assert(node->type == COMMAND_TERMINAL);
-    for(size_t i = 0; i < node->terminal.n_arguments; i++) {
-        struct ac_argument_spec const *const arg = &node->terminal.arguments[i];
-        if(arg->long_name == long_name) {
-            return arg;
-        }
-    }
-
-    return NULL;
-}
-
-static enum ac_error ac_parse_argv(int const argc, char const *const *const argv,
-                                   struct ac_command_spec const *const root,
-                                   struct ac_arguments const **const   args) {
-    if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
+static enum ac_error ac_parse_command(int const argc, char const *const *const argv,
+                                      struct ac_command_spec const *const command,
+                                      struct ac_arguments const **const   args) {
+    if(argv == NULL || command == NULL || args == NULL) {
         return AC_ERROR_INVALID_PARAMETER;
     }
 
@@ -142,66 +122,6 @@ static enum ac_error ac_parse_argv(int const argc, char const *const *const argv
         strlens[i] = strnlen(argv[i], MAX_STRING_LEN);
     }
 
-    // Figure out how many of the arguments are 'command' values.
-    enum ac_error result           = AC_ERROR_SUCCESS;
-    size_t        n_command_tokens = 0;
-    for(size_t i = 0; i < argc; i++) {
-        if(strlens[i] == 0 && n_command_tokens) {
-            // Empty string is always an invalid start.
-            return AC_ERROR_COMMAND_NAME_INVALID;
-        }
-        if(strlens[i] == 0 || argv[i][0] == '-') {
-            break;
-        }
-        n_command_tokens++;
-    }
-
-    // Traverse the command tree to resolve the command.
-    struct ac_command_spec const *curr_node = root;
-    for(size_t i = 0; i < n_command_tokens - 1; i++) {
-        char const *const curr_token = argv[i];
-        if(curr_node->type == COMMAND_TERMINAL) {
-            // This is a terminal node, so an extra command name is invalid here.
-            return AC_ERROR_TOO_MANY_COMMAND_NAMES;
-        }
-
-        bool found = false;
-        for(size_t j = 0; j < curr_node->parent.n_subcommands; j++) {
-            if(strncmp(curr_node->parent.subcommands[j].name, curr_token, MAX_STRING_LEN) == 0) {
-                // Found a matching subcommand, progress to the next node.
-                curr_node = &curr_node->parent.subcommands[j];
-                found     = true;
-                break;
-            }
-        }
-
-        if(!found) {
-            return AC_ERROR_UNKNOWN_COMMAND_NAME;
-        }
-    }
-
-    // We've either run out of tokens or hit an argument token, either way the
-    // curr_node should be terminal.
-    if(curr_node->type != COMMAND_TERMINAL) {
-        return AC_ERROR_EXPECTED_MORE_COMMANDS;
-    }
-
-    // Fast path: the command has no arguments so our job here is done.
-    if(n_command_tokens == argc) {
-        struct ac_arguments *const arguments = (struct ac_arguments *) malloc(sizeof(*args));
-        if(arguments == NULL) {
-            return AC_ERROR_MEMORY_ALLOC_FAILED;
-        }
-
-        arguments->command     = curr_node;
-        arguments->n_arguments = 0;
-        *args                  = arguments;
-
-        return AC_ERROR_SUCCESS;
-    }
-
-    // Tag the remaining arguments as either 'long' argument, 'short' argument, or
-    // 'value'.
     enum tag {
         TAG_SHORT_ARG,
         TAG_LONG_ARG,
@@ -209,7 +129,7 @@ static enum ac_error ac_parse_argv(int const argc, char const *const *const argv
     };
     enum tag tags[MAX_NUM_ARGS];
     size_t   n_arguments = 0;
-    for(size_t i = n_command_tokens; i < argc; i++) {
+    for(size_t i = 0; i < argc; i++) {
         if(strlens[i] < 2) {
             tags[i] = TAG_VALUE;
             n_arguments++;
@@ -240,7 +160,7 @@ static enum ac_error ac_parse_argv(int const argc, char const *const *const argv
         (struct ac_arguments *) malloc(sizeof(*args) + sizeof(struct ac_argument) * n_arguments);
     bool   expecting_value = false;
     size_t args_idx        = 0;
-    for(size_t i = n_command_tokens; i < argc; i++) {
+    for(size_t i = 0; i < argc; i++) {
         char const *const value = argv[i];
         switch(tags[i]) {
             case TAG_LONG_ARG:
@@ -252,9 +172,8 @@ static enum ac_error ac_parse_argv(int const argc, char const *const *const argv
 
                 struct ac_argument *const arg = &arguments->arguments[args_idx];
 
-                for(size_t i = 0; i < curr_node->terminal.n_arguments; i++) {
-                    struct ac_argument_spec const *const arg_spec =
-                        &curr_node->terminal.arguments[i];
+                for(size_t i = 0; i < command->n_arguments; i++) {
+                    struct ac_argument_spec const *const arg_spec = &command->arguments[i];
                     if(tags[i] == TAG_SHORT_ARG) {
                         if(arg_spec->has_short_name && arg_spec->short_name == value[1]) {
                             arg->argument = arg_spec;
@@ -341,8 +260,8 @@ static enum ac_error ac_parse_argv(int const argc, char const *const *const argv
     }
 
     // Make sure all the required arguments are present.
-    for(size_t i = 0; i < curr_node->terminal.n_arguments; i++) {
-        struct ac_argument_spec const *const arg_spec = &curr_node->terminal.arguments[i];
+    for(size_t i = 0; i < command->n_arguments; i++) {
+        struct ac_argument_spec const *const arg_spec = &command->arguments[i];
         if(arg_spec->required) {
             bool found = false;
             for(size_t j = 0; j < arguments->n_arguments; j++) {
@@ -362,4 +281,74 @@ static enum ac_error ac_parse_argv(int const argc, char const *const *const argv
     *args = arguments;
 
     return AC_ERROR_SUCCESS;
+}
+
+static enum ac_error ac_parse_multicommand(int const argc, char const *const *const argv,
+                                           struct ac_multicommand_spec const *const root,
+                                           struct ac_arguments const **const        args) {
+    if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
+        return AC_ERROR_INVALID_PARAMETER;
+    }
+
+    if(argc > MAX_NUM_ARGS) {
+        return AC_ERROR_EXCEEDED_MAX_NUM_ARGS;
+    }
+
+    // Figure out how many of the arguments are multicommand names.
+    enum ac_error result          = AC_ERROR_SUCCESS;
+    size_t        n_command_names = 0;
+    for(size_t i = 0; i < argc; i++) {
+        size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
+        if(namelen == 0 && n_command_names) {
+            // Empty string is always an invalid start.
+            return AC_ERROR_COMMAND_NAME_INVALID;
+        }
+        if(namelen == 0 || argv[i][0] == '-') {
+            break;
+        }
+        n_command_names++;
+    }
+
+    // Traverse the command tree to resolve the command.
+    struct ac_multicommand_spec const *curr_node = root;
+    struct ac_command_spec const      *command   = NULL;
+    for(size_t i = 0; i < n_command_names; i++) {
+        char const *const curr_name = argv[i];
+        bool              found     = false;
+
+        for(size_t j = 0; j < curr_node->n_subcommands; j++) {
+            if(strncmp(curr_node->subcommands[j].name, curr_name, MAX_STRING_LEN) == 0) {
+                found = true;
+
+                // If this is the last iteration, then we expect the node to be terminal.
+                if(i + 1 == n_command_names) {
+                    if(curr_node->subcommands[j].type != COMMAND_TERMINAL) {
+                        return AC_ERROR_EXPECTED_MORE_COMMAND_NAMES;
+                    }
+
+                    command = curr_node->subcommands[j].terminal.command;
+                }
+                // Otherwise we've found a matching subcommand, progress to the next node.
+                else {
+                    if(curr_node->subcommands[j].type != COMMAND_PARENT) {
+                        return AC_ERROR_TOO_MANY_COMMAND_NAMES;
+                    }
+
+                    curr_node = curr_node->subcommands[j].parent.subcommands;
+                }
+
+                break;
+            }
+        }
+
+        if(!found) {
+            return AC_ERROR_UNKNOWN_COMMAND_NAME;
+        }
+    }
+
+    if(command == NULL) {
+        return AC_ERROR_EXPECTED_MORE_COMMAND_NAMES;
+    }
+
+    return ac_parse_command(argc - n_command_names, &argv[n_command_names], command, args);
 }
