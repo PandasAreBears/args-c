@@ -11,45 +11,49 @@
 
 enum ac_error {
     AC_ERROR_SUCCESS,
+
     AC_ERROR_INVALID_PARAMETER,
     AC_ERROR_MEMORY_ALLOC_FAILED,
-    AC_ERROR_COMMAND_NAME_INVALID,
-    AC_ERROR_TOO_MANY_COMMAND_NAMES,
-    AC_ERROR_UNKNOWN_COMMAND_NAME,
-    AC_ERROR_EXPECTED_MORE_COMMAND_NAMES,
     AC_ERROR_EXCEEDED_MAX_NUM_ARGS,
-    AC_ERROR_EXPECTED_COMMAND_NAME,
-    AC_ERROR_EXPECTED_VALUE,
-    AC_ERROR_EXPECTED_NO_VALUE,
-    AC_ERROR_INVALID_INTEGER,
-    AC_ERROR_MISSING_REQUIRED_ARGUMENT,
-};
 
-enum ac_argument_type {
-    ARGUMENT_TYPE_NONE,
-    ARGUMENT_TYPE_STRING,
-    ARGUMENT_TYPE_UNSIGNED_INTEGER,
-    ARGUMENT_TYPE_SIGNED_INTEGER,
+    AC_ERROR_OPTION_NAME_NOT_IN_SPEC,
+    AC_ERROR_OPTION_NAME_EXPECTED,
+    AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
+    AC_ERROR_OPTION_VALUE_EXPECTED,
+
+    AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
+    AC_ERROR_COMMAND_NAME_REQUIRED,
+
+    AC_ERROR_ARGUMENT_EXCEEDED_SPEC,
+    AC_ERROR_ARGUMENT_NOT_FOUND,
 };
 
 struct ac_argument_spec {
-    char                 *long_name;
-    bool                  has_short_name;
-    char                  short_name;
-    char                 *help;
-    bool                  required;
-    enum ac_argument_type type;
+    char *name;
+    char *help;
+};
+
+struct ac_option_spec {
+    char *help;
+    char *long_name;
+    bool  has_short_name;
+    char  short_name;
+    bool  is_flag; // when false, a value is implicitly required.
+    bool  required;
 };
 
 struct ac_command_spec {
-    char                    *help;
+    char *help;
 
     // optional values to assign context or uniqely identify this command.
     size_t id;
     void  *context;
 
     size_t                   n_arguments;
-    struct ac_argument_spec arguments[];
+    struct ac_argument_spec *arguments;
+
+    size_t                 n_options;
+    struct ac_option_spec *options;
 };
 
 enum ac_command_type {
@@ -77,17 +81,20 @@ struct ac_multicommand_spec {
 
 struct ac_argument {
     struct ac_argument_spec const *argument;
-    union {
-        char    *string;
-        uint64_t unsigned_integer;
-        int64_t  signed_integer;
-    } value;
+    char                          *value;
 };
 
-struct ac_arguments {
+struct ac_option {
+    struct ac_option_spec const *option;
+    char                        *value;
+};
+
+struct ac_command {
     struct ac_command_spec const *command;
     size_t                        n_arguments;
-    struct ac_argument            arguments[];
+    struct ac_argument           *arguments;
+    size_t                        n_options;
+    struct ac_option             *options;
 };
 
 static bool ac_char_is_alpha(char const target) {
@@ -106,7 +113,7 @@ static bool ac_string_is_alpha(char const *const target, size_t const length) {
 
 static enum ac_error ac_parse_command(int const argc, char const *const *const argv,
                                       struct ac_command_spec const *const command,
-                                      struct ac_arguments const **const   args) {
+                                      struct ac_command *const            args) {
     if(argv == NULL || command == NULL || args == NULL) {
         return AC_ERROR_INVALID_PARAMETER;
     }
@@ -123,169 +130,176 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
     }
 
     enum tag {
-        TAG_SHORT_ARG,
-        TAG_LONG_ARG,
-        TAG_VALUE,
+        TAG_ARGUMENT,
+        TAG_SHORT_OPTION,
+        TAG_LONG_OPTION,
+        TAG_OPTION_VALUE,
     };
     enum tag tags[MAX_NUM_ARGS];
-    size_t   n_arguments = 0;
+    size_t   n_arguments        = 0;
+    size_t   n_options          = 0;
+    bool     arguments_complete = false;
     for(size_t i = 0; i < argc; i++) {
-        if(strlens[i] < 2) {
-            tags[i] = TAG_VALUE;
-            n_arguments++;
-            continue;
-        }
-
         // need to check for only alpha characters because e.g. '-1' is a valid
         // value.
         if(strlens[i] >= 3 && argv[i][0] == '-' && argv[i][1] == '-' &&
            ac_string_is_alpha(&argv[i][2], strlens[i])) {
-            tags[i] = TAG_LONG_ARG;
-            n_arguments++;
+            tags[i] = TAG_LONG_OPTION;
+            n_options++;
+            arguments_complete = true;
             continue;
         }
 
         if(strlens[i] == 2 && argv[i][0] == '-' && ac_char_is_alpha(argv[i][1])) {
-            tags[i] = TAG_SHORT_ARG;
-            n_arguments++;
+            tags[i] = TAG_SHORT_OPTION;
+            n_options++;
+            arguments_complete = true;
             continue;
         }
 
-        // Anything that's not a command is implictly a value.
-        tags[i] = TAG_VALUE;
+        // Anything that's not a option name is implictly an argument or value.
+        if(!arguments_complete) {
+            n_arguments++;
+            tags[i] = TAG_ARGUMENT;
+        } else {
+            tags[i] = TAG_OPTION_VALUE;
+        }
     }
 
-    // Find the respective argument spec value and populate the output structure.
-    struct ac_arguments *const arguments =
-        (struct ac_arguments *) malloc(sizeof(*args) + sizeof(struct ac_argument) * n_arguments);
+    if(n_arguments > command->n_arguments) {
+        return AC_ERROR_ARGUMENT_EXCEEDED_SPEC;
+    }
+    if(n_arguments < command->n_arguments) {
+        return AC_ERROR_ARGUMENT_NOT_FOUND;
+    }
+
+    struct ac_argument *const arguments =
+        (struct ac_argument *) calloc(n_arguments, sizeof(*arguments));
+    if(n_arguments != 0 && arguments == NULL) {
+        return AC_ERROR_MEMORY_ALLOC_FAILED;
+    }
+
+    // Arguments are assigned in the order that they appear in the command.
+    for(size_t i = 0; i < n_arguments; i++) {
+        arguments->value    = strdup(argv[i]);
+        arguments->argument = &command->arguments[i];
+    }
+
+    // fast path: there are no options, all work done.
+    if(n_options == 0) {
+        args->n_options   = 0;
+        args->options     = NULL;
+        args->arguments   = arguments;
+        args->n_arguments = n_arguments;
+        args->command = command;
+        return AC_ERROR_SUCCESS;
+    }
+
+    struct ac_option *options = (struct ac_option *) calloc(n_options, sizeof(*options));
+    if(options == NULL) {
+        free(arguments);
+        return AC_ERROR_MEMORY_ALLOC_FAILED;
+    }
+
+#define cleanup()                                                                                  \
+    free(arguments);                                                                               \
+    free(options)
+
+    size_t options_idx     = 0;
     bool   expecting_value = false;
-    size_t args_idx        = 0;
-    for(size_t i = 0; i < argc; i++) {
+    for(size_t i = n_arguments; i < argc; i++) {
         char const *const value = argv[i];
         switch(tags[i]) {
-            case TAG_LONG_ARG:
-            case TAG_SHORT_ARG: {
+            case TAG_ARGUMENT: {
+                assert(false);
+            }
+            case TAG_LONG_OPTION:
+            case TAG_SHORT_OPTION: {
                 if(expecting_value) {
-                    free(arguments);
-                    return AC_ERROR_EXPECTED_VALUE;
+                    cleanup();
+                    return AC_ERROR_OPTION_VALUE_EXPECTED;
                 }
 
-                struct ac_argument *const arg = &arguments->arguments[args_idx];
+                struct ac_option *const option = &options[options_idx];
 
-                for(size_t i = 0; i < command->n_arguments; i++) {
-                    struct ac_argument_spec const *const arg_spec = &command->arguments[i];
-                    if(tags[i] == TAG_SHORT_ARG) {
-                        if(arg_spec->has_short_name && arg_spec->short_name == value[1]) {
-                            arg->argument = arg_spec;
+                // Find the option that this maps to in the command spec.
+                for(size_t i = 0; i < command->n_options; i++) {
+                    struct ac_option_spec const *const option_spec = &command->options[i];
+                    if(tags[i] == TAG_SHORT_OPTION) {
+                        if(option_spec->has_short_name && option_spec->short_name == value[1]) {
+                            option->option = option_spec;
                         }
                     } else {
-                        if(strncmp(arg_spec->long_name, &value[2], strlens[i] - 2)) {
-                            arg->argument = arg_spec;
+                        if(strncmp(option_spec->long_name, &value[2], strlens[i] - 2)) {
+                            option->option = option_spec;
                         }
                     }
                 }
 
-                if(arg->argument == NULL) {
-                    free(arguments);
-                    return AC_ERROR_COMMAND_NAME_INVALID;
+                if(option->option == NULL) {
+                    cleanup();
+                    return AC_ERROR_OPTION_NAME_NOT_IN_SPEC;
                 }
 
-                if(arg->argument->type == ARGUMENT_TYPE_NONE) {
-                    args_idx++;
+                if(option->option->is_flag) {
+                    options_idx++;
                 } else {
                     expecting_value = true;
                 }
             }
-            case TAG_VALUE: {
+            case TAG_OPTION_VALUE: {
                 if(!expecting_value) {
-                    free(arguments);
-                    return AC_ERROR_EXPECTED_COMMAND_NAME;
+                    cleanup();
+                    return AC_ERROR_OPTION_NAME_EXPECTED;
                 }
 
-                struct ac_argument *const arg = &arguments->arguments[args_idx];
-                switch(arg->argument->type) {
-                    case ARGUMENT_TYPE_NONE: {
-                        free(arguments);
-                        return AC_ERROR_EXPECTED_NO_VALUE;
-                    }
-                    case ARGUMENT_TYPE_STRING: {
-                        arg->value.string = strdup(value);
-                        break;
-                    }
-                    case ARGUMENT_TYPE_SIGNED_INTEGER:
-                    case ARGUMENT_TYPE_UNSIGNED_INTEGER: {
-                        int         base        = 10;
-                        char const *start       = value;
-                        bool        is_negative = false;
-                        if(strlens[i] > 2 && value[0] == '0' && value[1] == 'x') {
-                            base  = 0x10;
-                            start = &value[2];
-                        }
-                        if(arg->argument->type == ARGUMENT_TYPE_SIGNED_INTEGER && value[0] == '-') {
-                            if(strlens[i] > 3 && value[1] == '0' && value[2] == 'x') {
-                                base  = 0x10;
-                                start = &value[3];
-                            } else {
-                                start = &value[1];
-                            }
-                            is_negative = true;
-                        }
+                struct ac_option *const option = &options[options_idx];
+                assert(options->option != NULL);
 
-                        char        *end    = NULL;
-                        size_t const number = strtol(&value[2], &end, base);
-                        if(end != value + strlens[i]) {
-                            free(arguments);
-                            return AC_ERROR_INVALID_INTEGER;
-                        }
-
-                        if(arg->argument->type == ARGUMENT_TYPE_UNSIGNED_INTEGER) {
-                            arg->value.unsigned_integer = number;
-                        } else {
-                            arg->value.signed_integer = is_negative ? number : -number;
-                        }
-
-                        break;
-                    }
-                }
+                option->value = strdup(value);
 
                 expecting_value = false;
-                args_idx++;
+                options_idx++;
             }
         }
     }
 
     if(expecting_value) {
-        free(arguments);
-        return AC_ERROR_EXPECTED_VALUE;
+        cleanup();
+        return AC_ERROR_OPTION_VALUE_EXPECTED;
     }
 
-    // Make sure all the required arguments are present.
-    for(size_t i = 0; i < command->n_arguments; i++) {
-        struct ac_argument_spec const *const arg_spec = &command->arguments[i];
-        if(arg_spec->required) {
+    // Make sure all the required options are present.
+    for(size_t i = 0; i < command->n_options; i++) {
+        struct ac_option_spec const *const option_spec = &command->options[i];
+        if(option_spec->required) {
             bool found = false;
-            for(size_t j = 0; j < arguments->n_arguments; j++) {
-                if(arguments->arguments[j].argument == arg_spec) {
+            for(size_t j = 0; j < n_options; j++) {
+                if(options[j].option == option_spec) {
                     found = true;
                     break;
                 }
             }
 
             if(!found) {
-                free(arguments);
-                return AC_ERROR_MISSING_REQUIRED_ARGUMENT;
+                cleanup();
+                return AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC;
             }
         }
     }
 
-    *args = arguments;
+    args->n_arguments = n_arguments;
+    args->arguments = arguments;
+    args->n_options = n_options;
+    args->options = options;
+    args->command = command;
 
     return AC_ERROR_SUCCESS;
 }
 
 static enum ac_error ac_parse_multicommand(int const argc, char const *const *const argv,
-                                           struct ac_multicommand_spec const *const root,
-                                           struct ac_arguments const **const        args) {
+                                           struct ac_multicommand_spec const *const  root,
+                                           struct ac_command *const args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
         return AC_ERROR_INVALID_PARAMETER;
     }
@@ -301,7 +315,7 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
         size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
         if(namelen == 0 && n_command_names) {
             // Empty string is always an invalid start.
-            return AC_ERROR_COMMAND_NAME_INVALID;
+            return AC_ERROR_OPTION_NAME_NOT_IN_SPEC;
         }
         if(namelen == 0 || argv[i][0] == '-') {
             break;
@@ -312,43 +326,36 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
     // Traverse the command tree to resolve the command.
     struct ac_multicommand_spec const *curr_node = root;
     struct ac_command_spec const      *command   = NULL;
-    for(size_t i = 0; i < n_command_names; i++) {
+    size_t i = 0;
+    for(; i < n_command_names; i++) {
         char const *const curr_name = argv[i];
         bool              found     = false;
 
         for(size_t j = 0; j < curr_node->n_subcommands; j++) {
-            if(strncmp(curr_node->subcommands[j].name, curr_name, MAX_STRING_LEN) == 0) {
+            if(0 == strncmp(curr_node->subcommands[j].name, curr_name, MAX_STRING_LEN) == 0) {
                 found = true;
+
+                if (curr_node->subcommands[j].type == COMMAND_TERMINAL) {
+                    command = curr_node->subcommands[j].terminal.command;
+                    break;
+                }
 
                 // If this is the last iteration, then we expect the node to be terminal.
                 if(i + 1 == n_command_names) {
-                    if(curr_node->subcommands[j].type != COMMAND_TERMINAL) {
-                        return AC_ERROR_EXPECTED_MORE_COMMAND_NAMES;
-                    }
-
-                    command = curr_node->subcommands[j].terminal.command;
+                    return AC_ERROR_COMMAND_NAME_REQUIRED;
                 }
+
                 // Otherwise we've found a matching subcommand, progress to the next node.
-                else {
-                    if(curr_node->subcommands[j].type != COMMAND_PARENT) {
-                        return AC_ERROR_TOO_MANY_COMMAND_NAMES;
-                    }
-
-                    curr_node = curr_node->subcommands[j].parent.subcommands;
-                }
-
-                break;
+                curr_node = curr_node->subcommands[j].parent.subcommands;
             }
         }
 
         if(!found) {
-            return AC_ERROR_UNKNOWN_COMMAND_NAME;
+            return AC_ERROR_COMMAND_NAME_NOT_IN_SPEC;
         }
     }
 
-    if(command == NULL) {
-        return AC_ERROR_EXPECTED_MORE_COMMAND_NAMES;
-    }
+    assert(command != NULL);
 
-    return ac_parse_command(argc - n_command_names, &argv[n_command_names], command, args);
+    return ac_parse_command(argc - i, &argv[i], command, args);
 }
