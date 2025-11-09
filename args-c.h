@@ -122,6 +122,8 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
         return AC_ERROR_EXCEEDED_MAX_NUM_ARGS;
     }
 
+    bzero(args, sizeof(*args));
+
     // We're going to continually reference the length of these strings, so
     // prepopulate an array for fast lookup.
     size_t strlens[MAX_NUM_ARGS] = {0};
@@ -174,7 +176,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
     }
 
     struct ac_argument *const arguments =
-        (struct ac_argument *) calloc(n_arguments, sizeof(*arguments));
+        n_arguments > 0 ? (struct ac_argument *) calloc(n_arguments, sizeof(*arguments)) : NULL;
     if(n_arguments != 0 && arguments == NULL) {
         return AC_ERROR_MEMORY_ALLOC_FAILED;
     }
@@ -185,18 +187,8 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
         arguments->argument = &command->arguments[i];
     }
 
-    // fast path: there are no options, all work done.
-    if(n_options == 0) {
-        args->n_options   = 0;
-        args->options     = NULL;
-        args->arguments   = arguments;
-        args->n_arguments = n_arguments;
-        args->command = command;
-        return AC_ERROR_SUCCESS;
-    }
-
-    struct ac_option *options = (struct ac_option *) calloc(n_options, sizeof(*options));
-    if(options == NULL) {
+    struct ac_option *options = n_options > 0 ? (struct ac_option *) calloc(n_options, sizeof(*options)) : NULL;
+    if(n_options != 0 && options == NULL) {
         free(arguments);
         return AC_ERROR_MEMORY_ALLOC_FAILED;
     }
@@ -289,17 +281,17 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
     }
 
     args->n_arguments = n_arguments;
-    args->arguments = arguments;
-    args->n_options = n_options;
-    args->options = options;
-    args->command = command;
+    args->arguments   = arguments;
+    args->n_options   = n_options;
+    args->options     = options;
+    args->command     = command;
 
     return AC_ERROR_SUCCESS;
 }
 
 static enum ac_error ac_parse_multicommand(int const argc, char const *const *const argv,
-                                           struct ac_multicommand_spec const *const  root,
-                                           struct ac_command *const args) {
+                                           struct ac_multicommand_spec const *const root,
+                                           struct ac_command *const                 args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
         return AC_ERROR_INVALID_PARAMETER;
     }
@@ -326,7 +318,7 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
     // Traverse the command tree to resolve the command.
     struct ac_multicommand_spec const *curr_node = root;
     struct ac_command_spec const      *command   = NULL;
-    size_t i = 0;
+    size_t                             i         = 0;
     for(; i < n_command_names; i++) {
         char const *const curr_name = argv[i];
         bool              found     = false;
@@ -335,7 +327,7 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
             if(0 == strncmp(curr_node->subcommands[j].name, curr_name, MAX_STRING_LEN) == 0) {
                 found = true;
 
-                if (curr_node->subcommands[j].type == COMMAND_TERMINAL) {
+                if(curr_node->subcommands[j].type == COMMAND_TERMINAL) {
                     command = curr_node->subcommands[j].terminal.command;
                     break;
                 }
