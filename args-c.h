@@ -221,8 +221,8 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
                         if(option_spec->has_short_name && option_spec->short_name == value[1]) {
                             option->option = option_spec;
                         }
-                    } else {
-                        if(strncmp(option_spec->long_name, &value[2], strlens[i] - 2)) {
+                    } else { // TAG_LONG_OPTION
+                        if(0 == strncmp(option_spec->long_name, &value[2], strlens[i] - 2)) {
                             option->option = option_spec;
                         }
                     }
@@ -238,6 +238,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
                 } else {
                     expecting_value = true;
                 }
+                break;
             }
             case TAG_OPTION_VALUE: {
                 if(!expecting_value) {
@@ -252,6 +253,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
 
                 expecting_value = false;
                 options_idx++;
+                break;
             }
         }
     }

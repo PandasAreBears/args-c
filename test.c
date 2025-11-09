@@ -53,7 +53,7 @@ static void test_command_1() {
     assert_ptr_eq(args.options, NULL);
 
     char const *const argv2[] = {"--value"};
-    result                    = ac_parse_command(1, argv2, &command1, &args);
+    result                    = ac_parse_command(1, argv2, command_ptr, &args);
     assert_int_eq(result, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -62,7 +62,7 @@ static void test_command_1() {
     assert_ptr_eq(args.options, NULL);
 
     char const *const argv3[] = {"name2"};
-    result                    = ac_parse_command(1, argv3, &command1, &args);
+    result                    = ac_parse_command(1, argv3, command_ptr, &args);
     assert_int_eq(result, AC_ERROR_ARGUMENT_EXCEEDED_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -96,6 +96,7 @@ static struct ac_command_spec const command2 = {.help      = "Testing command 2.
 static void test_command_2() {
     char const *const argv1[] = {};
     struct ac_command args    = {0};
+    struct ac_command_spec const *const command_ptr = &command2;
     enum ac_error     result  = ac_parse_command(0, argv1, &command2, &args);
     assert_int_eq(result, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
@@ -103,6 +104,16 @@ static void test_command_2() {
     assert_sizet_eq(args.n_options, 0UL);
     assert_ptr_eq(args.arguments, NULL);
     assert_ptr_eq(args.options, NULL);
+
+    char const *const argv2[] = {"--apple"};
+    result  = ac_parse_command(1, argv2, &command2, &args);
+    assert_int_eq(result, AC_ERROR_OPTION_VALUE_EXPECTED);
+    assert_ptr_eq(args.command, NULL);
+    assert_sizet_eq(args.n_arguments, 0UL);
+    assert_sizet_eq(args.n_options, 0UL);
+    assert_ptr_eq(args.arguments, NULL);
+    assert_ptr_eq(args.options, NULL);
+
 }
 
 int main() {
