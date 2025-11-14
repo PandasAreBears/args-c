@@ -23,6 +23,7 @@ enum ac_error {
 
     AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
     AC_ERROR_COMMAND_NAME_REQUIRED,
+    AC_ERROR_COMMAND_NAME_INVALID,
 
     AC_ERROR_ARGUMENT_EXCEEDED_SPEC,
     AC_ERROR_ARGUMENT_NOT_FOUND,
@@ -76,7 +77,7 @@ struct ac_multicommand_spec {
                 struct ac_multicommand_spec *subcommands;
             } parent;
         };
-    } subcommands[];
+    } *subcommands;
 };
 
 struct ac_argument {
@@ -307,9 +308,9 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
     size_t        n_command_names = 0;
     for(size_t i = 0; i < argc; i++) {
         size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
-        if(namelen == 0 && n_command_names) {
+        if(namelen == 0 && n_command_names == 0) {
             // Empty string is always an invalid start.
-            return AC_ERROR_OPTION_NAME_NOT_IN_SPEC;
+            return AC_ERROR_COMMAND_NAME_INVALID;
         }
         if(namelen == 0 || argv[i][0] == '-') {
             break;
@@ -321,12 +322,12 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
     struct ac_multicommand_spec const *curr_node = root;
     struct ac_command_spec const      *command   = NULL;
     size_t                             i         = 0;
-    for(; i < n_command_names; i++) {
+    for(; (i < n_command_names) && (command == NULL); i++) {
         char const *const curr_name = argv[i];
         bool              found     = false;
 
         for(size_t j = 0; j < curr_node->n_subcommands; j++) {
-            if(0 == strncmp(curr_node->subcommands[j].name, curr_name, MAX_STRING_LEN) == 0) {
+            if(0 == strncmp(curr_node->subcommands[j].name, curr_name, MAX_STRING_LEN)) {
                 found = true;
 
                 if(curr_node->subcommands[j].type == COMMAND_TERMINAL) {
