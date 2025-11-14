@@ -10,7 +10,7 @@ CC_FLAGS := -std=c11 -g -O0 -Wall -Wpedantic -Werror -Wno-gnu-zero-variadic-macr
 .PHONY: test docs clean
 
 test: $(ARG_C_HEADER) $(ARG_C_TEST)
-	clang -o args-c-test $(CC_FLAGS) $(ARG_C_TEST)
+	clang -o args-c-test -g -O0 $(ARG_C_TEST)
 
 docs: 
 	doxygen Doxyfile

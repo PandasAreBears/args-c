@@ -368,7 +368,8 @@ static struct ac_status ac_command_parse(int const argc, char const *const *cons
 
     size_t options_idx     = 0;
     bool   expecting_value = false;
-    for(size_t i = n_arguments; i < argc; i++) {
+    size_t i               = n_arguments;
+    for(; i < argc; i++) {
         char const *const value = argv[i];
         switch(tags[i]) {
             case TAG_ARGUMENT: {
@@ -379,7 +380,7 @@ static struct ac_status ac_command_parse(int const argc, char const *const *cons
                 if(expecting_value) {
                     cleanup();
                     return AC_STATUS(.code    = AC_ERROR_OPTION_VALUE_EXPECTED,
-                                     .context = (char *) options[options_idx].option->long_name);
+                                     .context = (char *) argv[i-1]);
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -434,8 +435,7 @@ static struct ac_status ac_command_parse(int const argc, char const *const *cons
 
     if(expecting_value) {
         cleanup();
-        return AC_STATUS(.code    = AC_ERROR_OPTION_VALUE_EXPECTED,
-                         .context = (char *) options[options_idx].option->long_name);
+        return AC_STATUS(.code = AC_ERROR_OPTION_VALUE_EXPECTED, .context = (void *) argv[i]);
     }
 
     // Make sure all the required options are present.
