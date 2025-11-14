@@ -7,6 +7,8 @@ A header-only command line argument parser for the C programming language with a
 2. Help message generation.
 3. Command validation (optional).
 
+This project uses features from the C11 standard.
+
 ## Terminology
 
 - User input: An array of string provided to args-c to be parsed. Typically in the form of `&argv[1]`.

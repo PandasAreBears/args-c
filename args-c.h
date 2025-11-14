@@ -493,7 +493,6 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
     }
 
     // Figure out how many of the arguments are multi-command names.
-    enum ac_status_code result          = AC_ERROR_SUCCESS;
     size_t              n_command_names = 0;
     for(size_t i = 0; i < argc; i++) {
         size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
@@ -612,13 +611,9 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
         assert(command->n_options <= MAX_NUM_OPTIONS);
         cursor += _ac_strcpy_safe(help, "\nOptions:\n", cursor, HELP_BUFFER_SZ);
 
-        bool   any_required        = false;
         size_t max_option_name_len = 0;
         for(size_t i = 0; i < command->n_options; i++) {
             struct ac_option_spec const *const option = &command->options[i];
-
-            any_required |= option->required;
-
             char const *const name = option->long_name;
             assert(name != NULL);
 
@@ -723,7 +718,7 @@ static char *ac_multicommand_help(struct ac_multi_command_spec const *const comm
 /// @result `AC_ERROR_SUCCESS` when the `command` is valid.
 static struct ac_status ac_validate_command(struct ac_command_spec const *const command) {
     if(command == NULL) {
-        return (struct ac_status)(struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
+        return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
     }
 
     for(size_t i = 0; i < command->n_arguments; i++) {
@@ -821,6 +816,9 @@ static struct ac_option *ac_extract_option(struct ac_command const *const comman
     return NULL;
 }
 
+/// @brief Generates a helpful error string when `results.code` != `AC_ERROR_SUCCESS`.
+/// @remark This function should always be used after `ac_parse_command` if an error occurs.
+/// @return An error string owned by the caller.
 static char *ac_error_string(struct ac_status result) {
     if(result.code == AC_ERROR_SUCCESS) {
         return NULL;
@@ -913,4 +911,18 @@ static char *ac_error_string(struct ac_status result) {
     free(error);
 
     return help;
+}
+
+static void ac_command_release(struct ac_command *command) {
+    if (command == NULL) {
+        return;
+    }
+
+    if (command->arguments != NULL) {
+        free(command->arguments);
+    }
+
+    if (command->options != NULL) {
+        free(command->options);
+    }
 }
