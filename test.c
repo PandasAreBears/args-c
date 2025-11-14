@@ -50,6 +50,7 @@ static struct ac_command_spec const command1 = {
 
 static void test_command_1() {
     printf("%s\n", ac_command_help(&command1));
+    assert_int_eq(ac_validate_command(&command1).code, AC_ERROR_SUCCESS);
 
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
@@ -100,6 +101,7 @@ static struct ac_command_spec const command2 = {
 
 static void test_command_2() {
     printf("%s\n", ac_command_help(&command2));
+    assert_int_eq(ac_validate_command(&command2).code, AC_ERROR_SUCCESS);
 
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
@@ -208,6 +210,7 @@ static struct ac_command_spec const command3 = {
 
 static void test_command_3() {
     printf("%s\n", ac_command_help(&command3));
+    assert_int_eq(ac_validate_command(&command3).code, AC_ERROR_SUCCESS);
 
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
@@ -289,6 +292,7 @@ static struct ac_multicommand_spec const
 
 static void test_command_4() {
     printf("%s\n", ac_multicommand_help(&command4));
+    assert_int_eq(ac_validate_multicommand(&command4).code, AC_ERROR_SUCCESS);
 
     char const *const argv1[] = {""};
     struct ac_command args    = {0};
