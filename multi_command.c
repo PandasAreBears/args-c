@@ -85,26 +85,26 @@ static struct ac_multi_command_spec multi_command = {
 
 int main(int argc, char const *const argv[]) {
     if(argc <= 1) {
-        // The @c ac_multicommand_help function is used for generating a help string. This returns
+        // The @c ac_multi_command_help function is used for generating a help string. This returns
         // an owned string, so the caller is responsible outputting and freeing the buffer.
-        printf("%s", ac_multicommand_help(&multi_command));
+        printf("%s", ac_multi_command_help(&multi_command));
         return -1;
     }
 
     // Non performance restricted environments should validate that the multi-command specification
     // is valid using `ac_command_multivalidate`. Note, this will recursively validate all
     // subcommands.
-    assert(ac_validate_multicommand(&multi_command).code == AC_ERROR_SUCCESS);
+    assert(ac_multi_command_validate(&multi_command).code == AC_ERROR_SUCCESS);
 
-    // User input is parsed by calling `ac_parse_multicommand`. The `multi_command` specification
+    // User input is parsed by calling `ac_multi_command_parse`. The `multi_command` specification
     // declares what valid user input is. The result of parsing will be populated in the provided
     // `args` structure.
     struct ac_command      args = {0};
     struct ac_status const result =
-        ac_parse_multicommand(argc - 1, &argv[1], &multi_command, &args);
+        ac_multi_command_parse(argc - 1, &argv[1], &multi_command, &args);
     if(!ac_status_is_success(result)) {
-        // Woops, something went wrong. Call `ac_error_string` for a helpful error output.
-        printf("%s", ac_error_string(result));
+        // Woops, something went wrong. Call `ac_status_string` for a helpful error output.
+        printf("%s", ac_status_string(result));
         return -1;
     }
 
@@ -135,6 +135,9 @@ int main(int argc, char const *const argv[]) {
     printf("level set to: %s\n", level);
 
     // ... do something with the parsed command.
+
+    // Release resources owned by the output structure.
+    ac_command_release(&args);
 
     return 0;
 }

@@ -16,6 +16,59 @@ This project uses features from the C11 standard.
 - Argument: A required, implicit value on the command line. Like unix's `cat <file>`.
 - Option: A named value on the command line. Like unix's `sed -i <file>`.
 
+## API
+
+Callers of the args-c API defined an `ac_command_spec` which describes how to parse user input. This will typically be defined in `static` memory as demonstrated in the #[Simple usage] section below.
+
+A help display can be generated from an `ac_command_spec` or `ac_multi_command_spec` using `ac_command_help` or `ac_multi_command_help` respectively. This returns a string owned by the caller.
+
+```c
+char *ac_command_help(struct ac_command_spec const *const command);
+char *ac_multi_command_help(struct ac_multi_command_spec const *const command);
+```
+
+To validate the command spec, caller are encouraged to use `ac_command_validate` or `ac_multi_command_validate`. This may be more appropriate in debug builds to verify that the `static` structure is valid.
+
+```c
+struct ac_status ac_command_validate(struct ac_command_spec const *const command);
+struct ac_status ac_multi_command_validate(struct ac_multi_command_spec const *const command);
+```
+
+To parse user input using a command spec, use either the `ac_command_parse` or `ac_multi_command_parse`. Note, if the user input comes from `int main(int argc, char *argv[])`, then the caller likely wants to pass `argc - 1` and `&argv[1]` to these functions.
+
+```c
+struct ac_status ac_command_parse(int const argc, char const *const *const argv,
+                                  struct ac_command_spec const *const command,
+                                  struct ac_command *const            args);
+struct ac_status ac_multi_command_parse(int const argc, char const *const *const argv,
+                                        struct ac_multi_command_spec const *const root,
+                                        struct ac_command *const                  args);
+```
+
+User's may provide input that is incorrect for the given command spec. The function `ac_status_is_success` is provided as a convenience for determining the success of a parsing operation.
+
+```c
+bool ac_status_is_success(struct ac_status const status);
+```
+
+If the operation was not successful, then the caller can generate a useful error string with the `ac_status_string`. The returned string is owned by the caller. Note, if the error was a user error, then the help text from `ac_command_help` is automatically included in this string.
+
+```c
+char *ac_status_string(struct ac_status result);
+```
+
+If the operation was successful, then the convenience functions `ac_extract_argument` and `ac_extact_option` should be used to access the parsing result `struct ac_command *const args` values.
+
+```c
+struct ac_argument *ac_extract_argument(struct ac_command const *const command, char const *const name);
+struct ac_option *ac_extract_option(struct ac_command const *const command, char const *const long_name);
+```
+
+Finally, once the caller is done with the result structure, it's underlying resources may be released with `ac_command_release`.
+
+```c
+void ac_command_release(struct ac_command *command);
+```
 
 ## Simple usage
 
@@ -50,16 +103,16 @@ int main(int const argc, char const *const argv[]) {
 
     // Non performance restricted environments should validate that command specification is valid
     // using `ac_command_validate`.
-    assert(ac_validate_command(&example_command).code == AC_ERROR_SUCCESS);
+    assert(ac_command_validate(&example_command).code == AC_ERROR_SUCCESS);
 
-    // User input is parsed by calling `ac_parse_command`. The `example_command` specification
+    // User input is parsed by calling `ac_command_parse`. The `example_command` specification
     // declares what valid user input is. The result of parsing will be populated in the provided
     // `args` structure.
     struct ac_command      args   = {0};
-    struct ac_status const result = ac_parse_command(argc - 1, &argv[1], &example_command, &args);
+    struct ac_status const result = ac_command_parse(argc - 1, &argv[1], &example_command, &args);
     if(!ac_status_is_success(result)) {
-        // Woops, something went wrong. Call `ac_error_string` for a helpful error output.
-        printf("%s", ac_error_string(result));
+        // Woops, something went wrong. Call `ac_status_string` for a helpful error output.
+        printf("%s", ac_status_string(result));
         return -1;
     }
 
@@ -69,6 +122,9 @@ int main(int const argc, char const *const argv[]) {
     // `value` is NULL if the --banana option was unused.
 
     // ... do something with the parsed command.
+
+    // Release resources owned by the output structure.
+    ac_command_release(&args);
 
     return 0;
 }
@@ -164,26 +220,26 @@ static struct ac_multi_command_spec multi_command = {
 
 int main(int argc, char const *const argv[]) {
     if(argc <= 1) {
-        // The @c ac_multicommand_help function is used for generating a help string. This returns
+        // The @c ac_multi_command_help function is used for generating a help string. This returns
         // an owned string, so the caller is responsible outputting and freeing the buffer.
-        printf("%s", ac_multicommand_help(&multi_command));
+        printf("%s", ac_multi_command_help(&multi_command));
         return -1;
     }
 
     // Non performance restricted environments should validate that the multi-command specification
     // is valid using `ac_command_multivalidate`. Note, this will recursively validate all
     // subcommands.
-    assert(ac_validate_multicommand(&multi_command).code == AC_ERROR_SUCCESS);
+    assert(ac_multi_command_validate(&multi_command).code == AC_ERROR_SUCCESS);
 
-    // User input is parsed by calling `ac_parse_multicommand`. The `multi_command` specification
+    // User input is parsed by calling `ac_multi_command_parse`. The `multi_command` specification
     // declares what valid user input is. The result of parsing will be populated in the provided
     // `args` structure.
     struct ac_command      args = {0};
     struct ac_status const result =
-        ac_parse_multicommand(argc - 1, &argv[1], &multi_command, &args);
+        ac_multi_command_parse(argc - 1, &argv[1], &multi_command, &args);
     if(!ac_status_is_success(result)) {
-        // Woops, something went wrong. Call `ac_error_string` for a helpful error output.
-        printf("%s", ac_error_string(result));
+        // Woops, something went wrong. Call `ac_status_string` for a helpful error output.
+        printf("%s", ac_status_string(result));
         return -1;
     }
 
@@ -214,6 +270,9 @@ int main(int argc, char const *const argv[]) {
     printf("level set to: %s\n", level);
 
     // ... do something with the parsed command.
+
+    // Release resources owned by the output structure.
+    ac_command_release(&args);
 
     return 0;
 }

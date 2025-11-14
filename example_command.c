@@ -28,16 +28,16 @@ int main(int const argc, char const *const argv[]) {
 
     // Non performance restricted environments should validate that command specification is valid
     // using `ac_command_validate`.
-    assert(ac_validate_command(&example_command).code == AC_ERROR_SUCCESS);
+    assert(ac_command_validate(&example_command).code == AC_ERROR_SUCCESS);
 
-    // User input is parsed by calling `ac_parse_command`. The `example_command` specification
+    // User input is parsed by calling `ac_command_parse`. The `example_command` specification
     // declares what valid user input is. The result of parsing will be populated in the provided
     // `args` structure.
     struct ac_command      args   = {0};
-    struct ac_status const result = ac_parse_command(argc - 1, &argv[1], &example_command, &args);
+    struct ac_status const result = ac_command_parse(argc - 1, &argv[1], &example_command, &args);
     if(!ac_status_is_success(result)) {
-        // Woops, something went wrong. Call `ac_error_string` for a helpful error output.
-        printf("%s", ac_error_string(result));
+        // Woops, something went wrong. Call `ac_status_string` for a helpful error output.
+        printf("%s", ac_status_string(result));
         return -1;
     }
 
@@ -47,6 +47,9 @@ int main(int const argc, char const *const argv[]) {
     // `value` is NULL if the --banana option was unused.
 
     // ... do something with the parsed command.
+
+    // Release resources owned by the output structure.
+    ac_command_release(&args);
 
     return 0;
 }
