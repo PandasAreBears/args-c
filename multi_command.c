@@ -63,23 +63,21 @@ static struct ac_command_spec decompression = {
         },
     }};
 
-static struct ac_multicommand_spec multi_command = {
+static struct ac_multi_command_spec multi_command = {
     .help          = "A zlib compress command line utility",
     .n_subcommands = 2,
     .subcommands =
-        (struct ac_multicommand_subcommand[]) {
-            {.name = "compress",
-             .type = COMMAND_TERMINAL,
-             .terminal =
-                 {
-                     .command = &compression,
-                 }},
-            {.name = "decompress",
-             .type = COMMAND_TERMINAL,
-             .terminal =
-                 {
-                     .command = &decompression,
-                 }},
+        (struct ac_multi_command_subcommand[]) {
+            {
+                .name           = "compress",
+                .type           = COMMAND_SINGLE,
+                .single.command = &compression,
+            },
+            {
+                .name           = "decompress",
+                .type           = COMMAND_SINGLE,
+                .single.command = &decompression,
+            },
             // Nested subcommands can also be specfied here using a `COMMAND_PARENT` type, and a
             // .parent field in the struct.
         },

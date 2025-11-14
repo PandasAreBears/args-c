@@ -52,10 +52,10 @@ static void test_command_1() {
     printf("%s\n", ac_command_help(&command1));
     assert_int_eq(ac_validate_command(&command1).code, AC_ERROR_SUCCESS);
 
-    char const *const                   argv1[]     = {};
-    struct ac_command                   args        = {0};
+    char const *const                          argv1[]     = {};
+    struct ac_command                          args        = {0};
     struct ac_command_spec const *const command_ptr = &command1;
-    struct ac_status                    result = ac_parse_command(0, argv1, command_ptr, &args);
+    struct ac_status result = ac_parse_command(0, argv1, command_ptr, &args);
     assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -103,10 +103,10 @@ static void test_command_2() {
     printf("%s\n", ac_command_help(&command2));
     assert_int_eq(ac_validate_command(&command2).code, AC_ERROR_SUCCESS);
 
-    char const *const                   argv1[]     = {};
-    struct ac_command                   args        = {0};
+    char const *const                          argv1[]     = {};
+    struct ac_command                          args        = {0};
     struct ac_command_spec const *const command_ptr = &command2;
-    struct ac_status                    result      = ac_parse_command(0, argv1, &command2, &args);
+    struct ac_status result = ac_parse_command(0, argv1, &command2, &args);
     assert_int_eq(result.code, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -212,10 +212,10 @@ static void test_command_3() {
     printf("%s\n", ac_command_help(&command3));
     assert_int_eq(ac_validate_command(&command3).code, AC_ERROR_SUCCESS);
 
-    char const *const                   argv1[]     = {};
-    struct ac_command                   args        = {0};
+    char const *const                          argv1[]     = {};
+    struct ac_command                          args        = {0};
     struct ac_command_spec const *const command_ptr = &command3;
-    struct ac_status                    result      = ac_parse_command(0, argv1, &command3, &args);
+    struct ac_status result = ac_parse_command(0, argv1, &command3, &args);
     assert_int_eq(result.code, AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -251,44 +251,40 @@ static void test_command_3() {
     assert_ptr_neq(args.options, NULL);
 }
 
-static struct ac_multicommand_spec const
-    command4 = {.help          = "Multiple commands",
-                .n_subcommands = 3,
-                .subcommands =
-                    (struct ac_multicommand_subcommand[]) {
-                        {.name = "command1",
-                         .type = COMMAND_TERMINAL,
-                         .terminal =
-                             {
-                                 .command = (struct ac_command_spec *) &command1,
-                             }},
-                        {.name = "command2",
-                         .type = COMMAND_TERMINAL,
-                         .terminal =
-                             {
-                                 .command = (struct ac_command_spec *) &command2,
-                             }},
-                        {.name = "subcommand3",
-                         .type = COMMAND_PARENT,
-                         .parent =
-                             {.subcommands =
-                                  (struct ac_multicommand_spec[]) {
-                                      {.help          = "do subcommand3",
-                                       .n_subcommands = 1,
-                                       .subcommands = (struct ac_multicommand_subcommand[]) {{.name =
-                                                                                                  "command3",
-                                                                                              .type = COMMAND_TERMINAL,
-                                                                                              .terminal =
-                                                                                                  {
-                                                                                                      .command = (struct
-                                                                                                                  ac_command_spec *) &command3,
-                                                                                                  }}
+static struct ac_multi_command_spec const command4 = {
+    .help          = "Multiple commands",
+    .n_subcommands = 3,
+    .subcommands   = (struct ac_multi_command_subcommand[]) {
+        {
+              .name           = "command1",
+              .type           = COMMAND_SINGLE,
+              .single.command = (struct ac_command_spec *) &command1,
+        },
+        {
+              .name           = "command2",
+              .type           = COMMAND_SINGLE,
+              .single.command = (struct ac_command_spec *) &command2,
+        },
+        {.name = "subcommand3",
+           .type = COMMAND_MULTI,
+           .multi.subcommands =
+               (struct ac_multi_command_spec[]) {
+                 {.help          = "do subcommand3",
+                    .n_subcommands = 1,
+                    .subcommands =
+                        (struct ac_multi_command_subcommand[]) {
+                          {.name = "command3",
+                             .type = COMMAND_SINGLE,
+                             .single =
+                                 {
+                                     .command = (struct ac_command_spec *) &command3,
+                               }}
 
-                                       }
+                      }
 
-                                      }}
+                 }}
 
-                             }}}};
+        }}};
 
 static void test_command_4() {
     printf("%s\n", ac_multicommand_help(&command4));

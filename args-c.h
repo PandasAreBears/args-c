@@ -103,6 +103,7 @@ enum ac_status_code {
 struct ac_status {
     /// @brief A code that indicates the result of an operation.
     enum ac_status_code code;
+
     /// @brief A status code specific context value that can be used to debug the cause of the
     /// specified status code.
     /// @par The context values are described by documentation in the @c ac_status_code enum.
@@ -118,8 +119,8 @@ static bool ac_status_is_success(struct ac_status const status) {
 /// @brief Encapsulates an argument specification.
 /// @par In args-c, an 'argument' is a required positional value. For example, the file argument to
 /// unix "cat <file>".
-/// @par The caller provides argument specifications as part of the @c ac_command_spec structure
-/// which is a parameter to @c ac_command_parse.
+/// @par The caller provides argument specifications as part of the @c ac_command_spec
+/// structure which is a parameter to @c ac_command_parse.
 struct ac_argument_spec {
     /// @brief The name of this argument. This name only has semantic value, and won't appear user's
     /// command.
@@ -150,6 +151,15 @@ struct ac_option_spec {
     bool required;
 };
 
+/// @brief Describes whether a command in a multi-command points to another multi-command or just a
+/// regular command.
+enum ac_command_type {
+    /// @brief An @c ac_command_spec value.
+    COMMAND_SINGLE,
+    /// @brief An @c ac_multi_command_spec value.
+    COMMAND_MULTI,
+};
+
 /// @brief Encapsulates a command specification.
 /// @par This structure is passed to @c ac_parse_command to describe the structure of the command to
 /// be parsed.
@@ -173,19 +183,10 @@ struct ac_command_spec {
     struct ac_option_spec *options;
 };
 
-/// @brief Describes whether a command in a multi-command points to another multi-command or just a
-/// regular command.
-enum ac_command_type {
-    /// @brief An @c ac_command_spec value.
-    COMMAND_TERMINAL,
-    /// @brief An @c ac_multicommand_spec value.
-    COMMAND_PARENT,
-};
-
 /// @brief Encapsulates a multi-command specification.
 /// @par This structure is passed to @c ac_parse_multicommand to describe the structure of the
 /// multi-command to be parsed.
-struct ac_multicommand_spec {
+struct ac_multi_command_spec {
     /// @brief A help string that will appear in the @c ac_multicommand_help output.
     char *help;
 
@@ -193,7 +194,7 @@ struct ac_multicommand_spec {
     size_t n_subcommands;
     /// @brief An array of subcommand for this command. Must contain exactly @c n_subcommands
     /// elements.
-    struct ac_multicommand_subcommand {
+    struct ac_multi_command_subcommand {
         /// @brief The name of this multi-command. This is the name provided by the user to invoke
         /// this subcommand.
         char *name;
@@ -203,11 +204,11 @@ struct ac_multicommand_spec {
         union {
             struct {
                 struct ac_command_spec *command;
-            } terminal;
+            } single;
 
             struct {
-                struct ac_multicommand_spec *subcommands;
-            } parent;
+                struct ac_multi_command_spec *subcommands;
+            } multi;
         };
     } *subcommands;
 };
@@ -268,7 +269,7 @@ inline static bool _ac_string_is_alpha(char const *const target, size_t const le
 /// @result @c AC_ERROR_SUCCESS when the user input is successfully parsed.
 static struct ac_status ac_parse_command(int const argc, char const *const *const argv,
                                          struct ac_command_spec const *const command,
-                                         struct ac_command *const            args) {
+                                         struct ac_command *const                   args) {
     if(argv == NULL || command == NULL || args == NULL) {
         return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
     }
@@ -467,8 +468,8 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 /// AC_ERROR_SUCCESS.
 /// @result @c AC_ERROR_SUCCESS when the user input is successfully parsed.
 static struct ac_status ac_parse_multicommand(int const argc, char const *const *const argv,
-                                              struct ac_multicommand_spec const *const root,
-                                              struct ac_command *const                 args) {
+                                              struct ac_multi_command_spec const *const root,
+                                              struct ac_command *const                  args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
         return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER, .context = NULL};
     }
@@ -495,9 +496,9 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
     }
 
     // Traverse the command tree to resolve the command.
-    struct ac_multicommand_spec const *curr_node = root;
-    struct ac_command_spec const      *command   = NULL;
-    size_t                             i         = 0;
+    struct ac_multi_command_spec const  *curr_node = root;
+    struct ac_command_spec const *command   = NULL;
+    size_t                               i         = 0;
     for(; (i < n_command_names) && (command == NULL); i++) {
         char const *const curr_name = argv[i];
         bool              found     = false;
@@ -506,18 +507,18 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
             if(0 == strncmp(curr_node->subcommands[j].name, curr_name, MAX_STRING_LEN)) {
                 found = true;
 
-                if(curr_node->subcommands[j].type == COMMAND_TERMINAL) {
-                    command = curr_node->subcommands[j].terminal.command;
+                if(curr_node->subcommands[j].type == COMMAND_SINGLE) {
+                    command = curr_node->subcommands[j].single.command;
                     break;
                 }
 
-                // If this is the last iteration, then we expect the node to be terminal.
+                // If this is the last iteration, then we expect the node to be single.
                 if(i + 1 == n_command_names) {
                     return (struct ac_status) {.code = AC_ERROR_COMMAND_NAME_REQUIRED};
                 }
 
                 // Otherwise we've found a matching subcommand, progress to the next node.
-                curr_node = curr_node->subcommands[j].parent.subcommands;
+                curr_node = curr_node->subcommands[j].multi.subcommands;
             }
         }
 
@@ -649,7 +650,7 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
 /// @brief Generate a help text string for the given @p command multi-command specification
 /// @param command The multi-command to generate a help string for.
 /// @result A help string if successful, otherwise @c NULL.
-static char *ac_multicommand_help(struct ac_multicommand_spec const *const command) {
+static char *ac_multicommand_help(struct ac_multi_command_spec const *const command) {
     char *const help = (char *) malloc(HELP_BUFFER_SZ);
     if(help == NULL) {
         return NULL;
@@ -680,18 +681,17 @@ static char *ac_multicommand_help(struct ac_multicommand_spec const *const comma
         }
 
         switch(command->subcommands[i].type) {
-            case COMMAND_TERMINAL: {
-                if(command->subcommands[i].terminal.command->help) {
-                    cursor += _ac_strcpy_safe(help, command->subcommands[i].terminal.command->help,
+            case COMMAND_SINGLE: {
+                if(command->subcommands[i].single.command->help) {
+                    cursor += _ac_strcpy_safe(help, command->subcommands[i].single.command->help,
                                               cursor, HELP_BUFFER_SZ);
                 }
                 break;
             }
-            case COMMAND_PARENT: {
-                if(command->subcommands[i].parent.subcommands->help) {
-                    cursor +=
-                        _ac_strcpy_safe(help, command->subcommands[i].parent.subcommands->help,
-                                        cursor, HELP_BUFFER_SZ);
+            case COMMAND_MULTI: {
+                if(command->subcommands[i].multi.subcommands->help) {
+                    cursor += _ac_strcpy_safe(help, command->subcommands[i].multi.subcommands->help,
+                                              cursor, HELP_BUFFER_SZ);
                 }
                 break;
             }
@@ -744,7 +744,8 @@ static struct ac_status ac_validate_command(struct ac_command_spec const *const 
 /// @brief Determine if the provided `command` is a valid multi-command spec, therefore may safely
 /// be passed to `ac_parse_multicommand`.
 /// @result `AC_ERROR_SUCCESS` when the `command` is valid.
-static struct ac_status ac_validate_multicommand(struct ac_multicommand_spec const *const command) {
+static struct ac_status
+ac_validate_multicommand(struct ac_multi_command_spec const *const command) {
     if(command == NULL) {
         return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
     }
@@ -756,17 +757,17 @@ static struct ac_status ac_validate_multicommand(struct ac_multicommand_spec con
         }
 
         switch(command->subcommands[i].type) {
-            case COMMAND_TERMINAL: {
+            case COMMAND_SINGLE: {
                 struct ac_status const result =
-                    ac_validate_command(command->subcommands->terminal.command);
+                    ac_validate_command(command->subcommands->single.command);
                 if(!ac_status_is_success(result)) {
                     return result;
                 }
                 break;
             }
-            case COMMAND_PARENT: {
+            case COMMAND_MULTI: {
                 struct ac_status const result =
-                    ac_validate_multicommand(command->subcommands->parent.subcommands);
+                    ac_validate_multicommand(command->subcommands->multi.subcommands);
                 if(!ac_status_is_success(result)) {
                     return result;
                 }
@@ -780,7 +781,7 @@ static struct ac_status ac_validate_multicommand(struct ac_multicommand_spec con
 
 /// @brief Extracts the value of an argument `name` from the parsed `command` structure.
 /// @result The argument value, or `NULL` if the `name` wasn't in the `command`'s arguments.
-static char *ac_extract_argument(struct ac_command const *const command, char *name) {
+static char *ac_extract_argument(struct ac_command const *const command, char const *const name) {
     for(size_t i = 0; i < command->n_arguments; i++) {
         if(0 == strncmp(command->arguments[i].argument->name, name, MAX_STRING_LEN)) {
             return command->arguments[i].value;
@@ -793,7 +794,8 @@ static char *ac_extract_argument(struct ac_command const *const command, char *n
 /// @brief Extracts the value of an option `name` from the parsed `command` structure.
 /// @result The option value, or `NULL` if the `name` wasn't in the `command`'s arguments or no
 /// value was provided (in the case of a `is_flag` option).
-static char *ac_extract_option(struct ac_command const *const command, char *long_name) {
+static char *ac_extract_option(struct ac_command const *const command,
+                               char const *const              long_name) {
     for(size_t i = 0; i < command->n_options; i++) {
         if(0 == strncmp(command->options[i].option->long_name, long_name, MAX_STRING_LEN)) {
             return command->options[i].value;
