@@ -3,11 +3,22 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_STRING_LEN 5120
-#define MAX_NUM_ARGS   100
+enum {
+    MAX_STRING_LEN = 0x1000,
+};
+enum {
+    MAX_NUM_ARGS = 0x100,
+};
+enum {
+    HELP_BUFFER_SZ = 0x1000,
+};
+enum {
+    MAX_NUM_OPTIONS = 0x100,
+};
 
 enum ac_error {
     AC_ERROR_SUCCESS,
@@ -20,6 +31,7 @@ enum ac_error {
     AC_ERROR_OPTION_NAME_EXPECTED,
     AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
     AC_ERROR_OPTION_VALUE_EXPECTED,
+    AC_ERROR_OPTION_TOO_MANY,
 
     AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
     AC_ERROR_COMMAND_NAME_REQUIRED,
@@ -175,6 +187,9 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
     if(n_arguments < command->n_arguments) {
         return AC_ERROR_ARGUMENT_NOT_FOUND;
     }
+    if(n_options > MAX_NUM_OPTIONS) {
+        return AC_ERROR_OPTION_TOO_MANY;
+    }
 
     struct ac_argument *const arguments =
         n_arguments > 0 ? (struct ac_argument *) calloc(n_arguments, sizeof(*arguments)) : NULL;
@@ -188,7 +203,8 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
         arguments->argument = &command->arguments[i];
     }
 
-    struct ac_option *options = n_options > 0 ? (struct ac_option *) calloc(n_options, sizeof(*options)) : NULL;
+    struct ac_option *options =
+        n_options > 0 ? (struct ac_option *) calloc(n_options, sizeof(*options)) : NULL;
     if(n_options != 0 && options == NULL) {
         free(arguments);
         return AC_ERROR_MEMORY_ALLOC_FAILED;
@@ -353,4 +369,117 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
     assert(command != NULL);
 
     return ac_parse_command(argc - i, &argv[i], command, args);
+}
+
+static size_t ac_strcpy_safe(char dst[], char const src[], size_t const offset,
+                             size_t const dst_len) {
+    size_t const src_len = strnlen(src, MAX_STRING_LEN);
+
+    if(offset + src_len + 1 >= dst_len) {
+        return 0;
+    }
+
+    memcpy(&dst[offset], src, src_len);
+    dst[offset + src_len] = '\0';
+    return src_len;
+}
+
+static char *ac_command_help(struct ac_command_spec const *const command) {
+    char *const help = (char *) malloc(HELP_BUFFER_SZ);
+    if(help == NULL) {
+        return NULL;
+    }
+
+    size_t cursor = 0;
+    cursor += ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
+    cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+
+    if(command->n_arguments > 0) {
+        assert(command->n_arguments <= MAX_NUM_ARGS);
+        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+        cursor += ac_strcpy_safe(help, "Arguments:\n", cursor, HELP_BUFFER_SZ);
+
+        size_t max_argument_name_len = 0;
+        for(size_t i = 0; i < command->n_arguments; i++) {
+            char const *const name = command->arguments[i].name;
+            assert(name != NULL);
+
+            size_t const name_len = strnlen(name, MAX_STRING_LEN);
+            max_argument_name_len =
+                name_len > max_argument_name_len ? name_len : max_argument_name_len;
+        }
+
+        for(size_t i = 0; i < command->n_arguments; i++) {
+            char const *const name = command->arguments[i].name;
+            assert(name != NULL);
+
+            size_t const name_len = strnlen(name, MAX_STRING_LEN);
+            cursor += ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
+            cursor += ac_strcpy_safe(help, name, cursor, HELP_BUFFER_SZ);
+            for(size_t j = 0; j < (max_argument_name_len - name_len) + 1; j++) {
+                cursor += ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
+            }
+
+            char *arghelp = command->arguments[i].help;
+            if(arghelp != NULL) {
+                cursor += ac_strcpy_safe(help, arghelp, cursor, HELP_BUFFER_SZ);
+            }
+            cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+        }
+    }
+
+    if(command->n_options > 0) {
+        assert(command->n_options <= MAX_NUM_OPTIONS);
+        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+        cursor += ac_strcpy_safe(help, "Options:\n", cursor, HELP_BUFFER_SZ);
+
+        bool   any_required        = false;
+        size_t max_option_name_len = 0;
+        for(size_t i = 0; i < command->n_options; i++) {
+            struct ac_option_spec const *const option = &command->options[i];
+
+            any_required |= option->required;
+
+            char const *const name = option->long_name;
+            assert(name != NULL);
+
+            size_t const name_len = strnlen(name, MAX_STRING_LEN);
+            max_option_name_len   = name_len > max_option_name_len ? name_len : max_option_name_len;
+        }
+
+        for(size_t i = 0; i < command->n_options; i++) {
+            struct ac_option_spec const *const option = &command->options[i];
+
+            cursor += ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
+
+            if(option->has_short_name) {
+                cursor += ac_strcpy_safe(help, "-", cursor, HELP_BUFFER_SZ);
+                help[cursor++] = option->short_name;
+                cursor += ac_strcpy_safe(help, ", ", cursor, HELP_BUFFER_SZ);
+            } else {
+                cursor += ac_strcpy_safe(help, "    ", cursor, HELP_BUFFER_SZ);
+            }
+
+            char const *const long_name = option->long_name;
+            assert(long_name != NULL);
+
+            size_t const name_len = strnlen(long_name, MAX_STRING_LEN);
+            cursor += ac_strcpy_safe(help, "--", cursor, HELP_BUFFER_SZ);
+            cursor += ac_strcpy_safe(help, long_name, cursor, HELP_BUFFER_SZ);
+            for(size_t j = 0; j < (max_option_name_len - name_len) + 1; j++) {
+                cursor += ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
+            }
+
+            char const *const arghelp = option->help;
+            if(arghelp != NULL) {
+                cursor += ac_strcpy_safe(help, arghelp, cursor, HELP_BUFFER_SZ);
+            }
+            if(option->required) {
+                cursor += ac_strcpy_safe(help, " (required)", cursor, HELP_BUFFER_SZ);
+            }
+            cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+        }
+    }
+
+    return help;
 }

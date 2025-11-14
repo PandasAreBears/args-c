@@ -49,6 +49,8 @@ static struct ac_command_spec const command1 = {
 };
 
 static void test_command_1() {
+    printf("%s\n", ac_command_help(&command1));
+
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command1;
@@ -97,6 +99,8 @@ static struct ac_command_spec const command2 = {
                                           }}};
 
 static void test_command_2() {
+    printf("%s\n", ac_command_help(&command2));
+
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command2;
@@ -203,6 +207,8 @@ static struct ac_command_spec const command3 = {
                                           }}};
 
 static void test_command_3() {
+    printf("%s\n", ac_command_help(&command3));
+
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command3;
@@ -336,7 +342,6 @@ static void test_command_4() {
     assert_ptr_neq(args.arguments, NULL);
     assert_ptr_neq(args.options, NULL);
 }
-
 
 int main() {
     test_command_1();
