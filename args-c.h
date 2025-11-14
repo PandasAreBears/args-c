@@ -762,6 +762,7 @@ static struct ac_status ac_validate_multicommand(struct ac_multicommand_spec con
                 if(!ac_status_is_success(result)) {
                     return result;
                 }
+                break;
             }
             case COMMAND_PARENT: {
                 struct ac_status const result =
@@ -769,9 +770,35 @@ static struct ac_status ac_validate_multicommand(struct ac_multicommand_spec con
                 if(!ac_status_is_success(result)) {
                     return result;
                 }
+                break;
             }
         }
     }
 
     return (struct ac_status) {.code = AC_ERROR_SUCCESS};
+}
+
+/// @brief Extracts the value of an argument `name` from the parsed `command` structure.
+/// @result The argument value, or `NULL` if the `name` wasn't in the `command`'s arguments.
+static char *ac_extract_argument(struct ac_command const *const command, char *name) {
+    for(size_t i = 0; i < command->n_arguments; i++) {
+        if(0 == strncmp(command->arguments[i].argument->name, name, MAX_STRING_LEN)) {
+            return command->arguments[i].value;
+        }
+    }
+
+    return NULL;
+}
+
+/// @brief Extracts the value of an option `name` from the parsed `command` structure.
+/// @result The option value, or `NULL` if the `name` wasn't in the `command`'s arguments or no
+/// value was provided (in the case of a `is_flag` option).
+static char *ac_extract_option(struct ac_command const *const command, char *long_name) {
+    for(size_t i = 0; i < command->n_options; i++) {
+        if(0 == strncmp(command->options[i].option->long_name, long_name, MAX_STRING_LEN)) {
+            return command->options[i].value;
+        }
+    }
+
+    return NULL;
 }

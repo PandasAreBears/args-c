@@ -1,4 +1,6 @@
 args-c-test*
+args-c-command*
+args-c-multi*
 docs/
 .venv
 .vscode
