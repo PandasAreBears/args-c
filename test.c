@@ -52,10 +52,10 @@ static void test_command_1() {
     printf("%s\n", ac_command_help(&command1));
     assert_int_eq(ac_validate_command(&command1).code, AC_ERROR_SUCCESS);
 
-    char const *const                          argv1[]     = {};
-    struct ac_command                          args        = {0};
+    char const *const                   argv1[]     = {};
+    struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command1;
-    struct ac_status result = ac_parse_command(0, argv1, command_ptr, &args);
+    struct ac_status                    result = ac_parse_command(0, argv1, command_ptr, &args);
     assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -103,10 +103,10 @@ static void test_command_2() {
     printf("%s\n", ac_command_help(&command2));
     assert_int_eq(ac_validate_command(&command2).code, AC_ERROR_SUCCESS);
 
-    char const *const                          argv1[]     = {};
-    struct ac_command                          args        = {0};
+    char const *const                   argv1[]     = {};
+    struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command2;
-    struct ac_status result = ac_parse_command(0, argv1, &command2, &args);
+    struct ac_status                    result      = ac_parse_command(0, argv1, &command2, &args);
     assert_int_eq(result.code, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -180,42 +180,50 @@ static void test_command_2() {
     assert_ptr_eq(args.options, NULL);
 }
 
-static struct ac_command_spec const command3 = {
-    .help        = "Testing command 3.",
-    .n_arguments = 2,
-    .arguments =
-        (struct ac_argument_spec[]) {
-            {
-                .name = "FILE",
-                .help = "A file path",
-            },
-            {
-                .name = "OUTPUT",
-                .help = "An output path",
-            },
-        },
-    .n_options = 2,
-    .options   = (struct ac_option_spec[]) {{
-                                                .long_name      = "apple",
-                                                .has_short_name = true,
-                                                .short_name     = 'a',
-                                                .help           = "number of apples",
-                                          },
-                                            {
-                                                .long_name      = "banana",
-                                                .has_short_name = true,
-                                                .short_name     = 'b',
-                                                .help           = "change in the number of bananas",
-                                          }}};
+static struct ac_command_spec const command3 = {.help        = "Testing command 3.",
+                                                .n_arguments = 2,
+                                                .arguments =
+                                                    (struct ac_argument_spec[]) {
+                                                        {
+                                                            .name = "FILE",
+                                                            .help = "A file path",
+                                                        },
+                                                        {
+                                                            .name = "OUTPUT",
+                                                            .help = "An output path",
+                                                        },
+                                                    },
+                                                .n_options = 3,
+                                                .options   = (struct ac_option_spec[]) {
+                                                    {
+                                                          .long_name      = "apple",
+                                                          .has_short_name = true,
+                                                          .short_name     = 'a',
+                                                          .help           = "number of apples",
+                                                    },
+                                                    {
+                                                          .long_name      = "banana",
+                                                          .has_short_name = true,
+                                                          .short_name     = 'b',
+                                                          .help = "change in the number of bananas",
+                                                    },
+                                                    {
+                                                          .long_name      = "cherry",
+                                                          .has_short_name = true,
+                                                          .short_name     = 'c',
+                                                          .is_flag        = true,
+                                                          .help = "are there cherries?",
+                                                    },
+                                                }};
 
 static void test_command_3() {
     printf("%s\n", ac_command_help(&command3));
     assert_int_eq(ac_validate_command(&command3).code, AC_ERROR_SUCCESS);
 
-    char const *const                          argv1[]     = {};
-    struct ac_command                          args        = {0};
+    char const *const                   argv1[]     = {};
+    struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command3;
-    struct ac_status result = ac_parse_command(0, argv1, &command3, &args);
+    struct ac_status                    result      = ac_parse_command(0, argv1, &command3, &args);
     assert_int_eq(result.code, AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -243,6 +251,15 @@ static void test_command_3() {
 
     char const *const argv4[] = {"/path/to/a", "/path/to/b", "--banana", "5"};
     result                    = ac_parse_command(4, argv4, &command3, &args);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
+    assert_ptr_eq(args.command, command_ptr);
+    assert_sizet_eq(args.n_arguments, 2UL);
+    assert_sizet_eq(args.n_options, 1UL);
+    assert_ptr_neq(args.arguments, NULL);
+    assert_ptr_neq(args.options, NULL);
+
+    char const *const argv5[] = {"/path/to/a", "/path/to/b", "-c"};
+    result                    = ac_parse_command(3, argv5, &command3, &args);
     assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 2UL);

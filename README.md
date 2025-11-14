@@ -63,18 +63,20 @@ int main(int const argc, char const *const argv[]) {
 
     // Values are extracted from the `args` result using `ac_extract_option`. Arguments use
     // `ac_extract_argument` instead.
-    char *value = ac_extract_option(&args, "banana");
+    struct ac_option *value = ac_extract_option(&args, "banana");
     // `value` is NULL if the --banana option was unused.
 
     // ... do something with the parsed command.
 
     return 0;
 }
+
 ```
 
 ## Multi-command usage
 
 ```c
+
 #include "args-c.h"
 
 // Multi-commands may have multiple commands with the same name, so a good practice is to assign a
@@ -94,7 +96,7 @@ static struct ac_command_spec compression = {.help        = "Perform zlib compre
                                                          .help = "A path to the file to compress.",
                                                      },
                                                  },
-                                             .n_options = 1,
+                                             .n_options = 2,
                                              .options   = (struct ac_option_spec[]) {
                                                  {
                                                        .help      = "The compression level to use.",
@@ -122,7 +124,7 @@ static struct ac_command_spec decompression = {
                 .help = "A path to the file to decompress.",
             },
         },
-    .n_options = 1,
+    .n_options = 2,
     .options   = (struct ac_option_spec[]) {
         {
               .help           = "The compression level to use.",
@@ -196,8 +198,8 @@ int main(int argc, char const *const argv[]) {
             assert(false);
     }
 
-    char *path = ac_extract_argument(&args, "FILE");
-    printf("Using file path: %s\n", path);
+    struct ac_argument *path = ac_extract_argument(&args, "FILE");
+    printf("Using file path: %s\n", path->value);
 
     // The presence of the `progress` option in the output structure indicate that the user set the
     // flag.
@@ -206,7 +208,8 @@ int main(int argc, char const *const argv[]) {
 
     // Default values are handled by the caller. If `level` is not in the output structure, then a
     // default may be chosen instead.
-    char *level = ac_extract_option(&args, "level") ?: "DEFAULT";
+    struct ac_option *level_opt = ac_extract_option(&args, "level");
+    char             *level     = level_opt->value ?: "DEFAULT";
     printf("level set to: %s\n", level);
 
     // ... do something with the parsed command.

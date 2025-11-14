@@ -779,26 +779,25 @@ ac_validate_multicommand(struct ac_multi_command_spec const *const command) {
     return (struct ac_status) {.code = AC_ERROR_SUCCESS};
 }
 
-/// @brief Extracts the value of an argument `name` from the parsed `command` structure.
+/// @brief Extracts an argument from the parsed `command` structure.
 /// @result The argument value, or `NULL` if the `name` wasn't in the `command`'s arguments.
-static char *ac_extract_argument(struct ac_command const *const command, char const *const name) {
+static struct ac_argument *ac_extract_argument(struct ac_command const *const command, char const *const name) {
     for(size_t i = 0; i < command->n_arguments; i++) {
         if(0 == strncmp(command->arguments[i].argument->name, name, MAX_STRING_LEN)) {
-            return command->arguments[i].value;
+            return &command->arguments[i];
         }
     }
 
     return NULL;
 }
 
-/// @brief Extracts the value of an option `name` from the parsed `command` structure.
-/// @result The option value, or `NULL` if the `name` wasn't in the `command`'s arguments or no
-/// value was provided (in the case of a `is_flag` option).
-static char *ac_extract_option(struct ac_command const *const command,
+/// @brief Extracts an option from the parsed `command` structure.
+/// @result The option value, or `NULL` if the `name` wasn't in the `command`'s options.
+static struct ac_option *ac_extract_option(struct ac_command const *const command,
                                char const *const              long_name) {
     for(size_t i = 0; i < command->n_options; i++) {
         if(0 == strncmp(command->options[i].option->long_name, long_name, MAX_STRING_LEN)) {
-            return command->options[i].value;
+            return &command->options[i];
         }
     }
 

@@ -43,7 +43,7 @@ int main(int const argc, char const *const argv[]) {
 
     // Values are extracted from the `args` result using `ac_extract_option`. Arguments use
     // `ac_extract_argument` instead.
-    char *value = ac_extract_option(&args, "banana");
+    struct ac_option *value = ac_extract_option(&args, "banana");
     // `value` is NULL if the --banana option was unused.
 
     // ... do something with the parsed command.
