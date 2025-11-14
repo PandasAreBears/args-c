@@ -7,7 +7,7 @@ A header-only command line argument parser for the C programming language with a
 2. Help message generation.
 3. Command validation (optional).
 
-This project uses features from the C11 standard.
+This project uses is compatible with the C11 standard.
 
 ## Terminology
 
@@ -18,9 +18,9 @@ This project uses features from the C11 standard.
 
 ## API
 
-Callers of the args-c API defined an `ac_command_spec` which describes how to parse user input. This will typically be defined in `static` memory as demonstrated in the #[Simple usage] section below.
+Callers of the args-c API define an `ac_command_spec` which describes how to parse user input. This will typically be defined in `static` memory as demonstrated in the the example files.
 
-A help display can be generated from an `ac_command_spec` or `ac_multi_command_spec` using `ac_command_help` or `ac_multi_command_help` respectively. This returns a string owned by the caller.
+A help message can be generated using `ac_command_help` or `ac_multi_command_help`. This returns a string owned by the caller.
 
 ```c
 char *ac_command_help(struct ac_command_spec const *const command);
@@ -57,7 +57,7 @@ If the operation was not successful, then the caller can generate a useful error
 char *ac_status_string(struct ac_status result);
 ```
 
-If the operation was successful, then the convenience functions `ac_extract_argument` and `ac_extact_option` should be used to access the parsing result `struct ac_command *const args` values.
+If the parsing operation was successful, then the convenience functions `ac_extract_argument` and `ac_extact_option` should be used to access the parsing result `struct ac_command *const args` values.
 
 ```c
 struct ac_argument *ac_extract_argument(struct ac_command const *const command, char const *const name);
