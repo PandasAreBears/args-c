@@ -3,7 +3,6 @@ ARG_C_TEST = test.c
 COMMAND_EXAMPLE = example_command.c 
 MULTI_EXAMPLE = multi_command.c 
 .ONESHELL:
-SHELL = zsh
 
 CC_FLAGS := -std=c11 -g -O0 -Wall -Wpedantic -Werror -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-function
 
