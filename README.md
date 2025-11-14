@@ -42,7 +42,7 @@ int main(int const argc, char const *const argv[]) {
     if(argc <= 1) {
         // The @c ac_command_help function is used for generating a help string. This returns an
         // owned string, so the caller is responsible outputting and freeing the buffer.
-        printf("%s\n", ac_command_help(&example_command));
+        printf("%s", ac_command_help(&example_command));
         return -1;
     }
 
@@ -56,8 +56,8 @@ int main(int const argc, char const *const argv[]) {
     struct ac_command      args   = {0};
     struct ac_status const result = ac_parse_command(argc - 1, &argv[1], &example_command, &args);
     if(!ac_status_is_success(result)) {
-        // Woops, something went wrong. Check out `result.code` for more detail.
-        printf("%s\n", ac_command_help(&example_command));
+        // Woops, something went wrong. Call `ac_error_string` for a helpful error output.
+        printf("%s", ac_error_string(result));
         return -1;
     }
 
@@ -70,7 +70,6 @@ int main(int const argc, char const *const argv[]) {
 
     return 0;
 }
-
 ```
 
 ## Multi-command usage
@@ -165,7 +164,7 @@ int main(int argc, char const *const argv[]) {
     if(argc <= 1) {
         // The @c ac_multicommand_help function is used for generating a help string. This returns
         // an owned string, so the caller is responsible outputting and freeing the buffer.
-        printf("%s\n", ac_multicommand_help(&multi_command));
+        printf("%s", ac_multicommand_help(&multi_command));
         return -1;
     }
 
@@ -181,8 +180,8 @@ int main(int argc, char const *const argv[]) {
     struct ac_status const result =
         ac_parse_multicommand(argc - 1, &argv[1], &multi_command, &args);
     if(!ac_status_is_success(result)) {
-        // Woops, something went wrong. Check out `result.code` for more detail.
-        printf("%s\n", ac_multicommand_help(&multi_command));
+        // Woops, something went wrong. Call `ac_error_string` for a helpful error output.
+        printf("%s", ac_error_string(result));
         return -1;
     }
 
@@ -209,7 +208,7 @@ int main(int argc, char const *const argv[]) {
     // Default values are handled by the caller. If `level` is not in the output structure, then a
     // default may be chosen instead.
     struct ac_option *level_opt = ac_extract_option(&args, "level");
-    char             *level     = level_opt->value ?: "DEFAULT";
+    char             *level     = (level_opt && level_opt->value) ? level_opt->value : "DEFAULT";
     printf("level set to: %s\n", level);
 
     // ... do something with the parsed command.

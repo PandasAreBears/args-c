@@ -45,13 +45,13 @@ enum ac_status_code {
     /// @par Context: char * of the option name used.
     AC_ERROR_OPTION_NAME_NOT_IN_SPEC,
     /// @brief An option name was expected, but a value was found instead.
-    /// @par Context: None.
+    /// @par Context: char * of the incorrect value.
     AC_ERROR_OPTION_NAME_EXPECTED,
     /// @brief An option name is required in the command spec but not provided.
     /// @par Context: char * of the option name expected.
     AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
     /// @brief An option value was expected but something else was provided instead.
-    /// @par Context: None,
+    /// @par Context: char * of the option name for which a value was expected,
     AC_ERROR_OPTION_VALUE_EXPECTED,
     /// @brief The number of options provided exceeded @c MAX_NUM_OPTIONS.
     /// @par Context: size_t of the number of options provided.
@@ -73,7 +73,7 @@ enum ac_status_code {
     /// @par Context: char * of the command name used.
     AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
     /// @brief An command name is required, but not provided.
-    /// @par Context: None,
+    /// @par Context: char * of the command name that requires another command name.
     AC_ERROR_COMMAND_NAME_REQUIRED,
     /// @brief The provided command name is invalid.
     /// @par Context: char * of the invalid command name.
@@ -378,7 +378,8 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
             case TAG_SHORT_OPTION: {
                 if(expecting_value) {
                     cleanup();
-                    return AC_STATUS(.code = AC_ERROR_OPTION_VALUE_EXPECTED);
+                    return AC_STATUS(.code    = AC_ERROR_OPTION_VALUE_EXPECTED,
+                                     .context = (char *) options[options_idx].option->long_name);
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -401,7 +402,8 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
                 if(option->option == NULL) {
                     cleanup();
-                    return AC_STATUS(.code = AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
+                    return AC_STATUS(.code    = AC_ERROR_OPTION_NAME_NOT_IN_SPEC,
+                                     .context = (void *) value);
                 }
 
                 if(option->option->is_flag) {
@@ -414,7 +416,8 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
             case TAG_OPTION_VALUE: {
                 if(!expecting_value) {
                     cleanup();
-                    return AC_STATUS(.code = AC_ERROR_OPTION_NAME_EXPECTED);
+                    return AC_STATUS(.code    = AC_ERROR_OPTION_NAME_EXPECTED,
+                                     .context = (char *) value);
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -431,7 +434,8 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
     if(expecting_value) {
         cleanup();
-        return AC_STATUS(.code = AC_ERROR_OPTION_VALUE_EXPECTED);
+        return AC_STATUS(.code    = AC_ERROR_OPTION_VALUE_EXPECTED,
+                         .context = (char *) options[options_idx].option->long_name);
     }
 
     // Make sure all the required options are present.
@@ -495,8 +499,8 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
         size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
         if(namelen == 0 && n_command_names == 0) {
             // Empty string is always an invalid start.
-            return (struct ac_status) {.code    = AC_ERROR_COMMAND_NAME_INVALID,
-                                       .context = (void *) argv[i], .multi = root};
+            return (struct ac_status) {
+                .code = AC_ERROR_COMMAND_NAME_INVALID, .context = (void *) argv[i], .multi = root};
         }
         if(namelen == 0 || argv[i][0] == '-') {
             break;
@@ -523,7 +527,9 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
 
                 // If this is the last iteration, then we expect the node to be single.
                 if(i + 1 == n_command_names) {
-                    return (struct ac_status) {.code = AC_ERROR_COMMAND_NAME_REQUIRED, .multi = curr_node};
+                    return (struct ac_status) {.code    = AC_ERROR_COMMAND_NAME_REQUIRED,
+                                               .multi   = curr_node,
+                                               .context = (char *) curr_name};
                 }
 
                 // Otherwise we've found a matching subcommand, progress to the next node.
@@ -533,7 +539,8 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
 
         if(!found) {
             return (struct ac_status) {.code    = AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
-                                       .context = (void *) curr_name, .multi = curr_node};
+                                       .context = (void *) curr_name,
+                                       .multi   = curr_node};
         }
     }
 
@@ -812,4 +819,98 @@ static struct ac_option *ac_extract_option(struct ac_command const *const comman
     }
 
     return NULL;
+}
+
+static char *ac_error_string(struct ac_status result) {
+    if(result.code == AC_ERROR_SUCCESS) {
+        return NULL;
+    }
+
+    bool  include_help = false;
+    char *error        = (char *) malloc(HELP_BUFFER_SZ);
+#define errorf(...)                                                                                \
+    snprintf(error, HELP_BUFFER_SZ, ##__VA_ARGS__);                                                \
+    break
+
+    switch(result.code) {
+        case AC_ERROR_SUCCESS:
+            errorf("Success\n");
+        case AC_ERROR_INVALID_PARAMETER:
+            errorf("Programmer error: Invalid parameter\n");
+        case AC_ERROR_MEMORY_ALLOC_FAILED:
+            errorf("System error: Memory allocation failed\n");
+        case AC_ERROR_OPTION_NAME_NOT_IN_SPEC:
+            include_help = true;
+            errorf("Option name '--%s' is not valid.\n", (char *) result.context);
+        case AC_ERROR_OPTION_NAME_EXPECTED:
+            include_help = true;
+            errorf(
+                "Option value '%s' was provided where an option name was expected.",
+                (char *) result.context);
+        case AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC:
+            include_help = true;
+            errorf("Option name '--%s' is required.\n", (char *) result.context);
+        case AC_ERROR_OPTION_VALUE_EXPECTED:
+            include_help = true;
+            errorf("Expected value for option %s\n", (char *) result.context);
+        case AC_ERROR_OPTION_TOO_MANY:
+            include_help = true;
+            errorf("Too many options provided.\n");
+        case AC_ERROR_OPTION_SPEC_NEEDS_NAME:
+            errorf("Programmer error: Option in spec has a NULL long name field.\n");
+        case AC_ERROR_OPTION_LONG_NAME_INVALID:
+            errorf("Programmer error: Option in spec has an invalid long name field.\n");
+        case AC_ERROR_OPTION_SHORT_NAME_INVALID:
+            errorf("Programmer error: Option in spec has an invalid short name field.\n");
+        case AC_ERROR_OPTION_FLAG_AND_REQUIRED:
+            errorf("Programmer error: Option in spec has both required and is_flag.\n");
+        case AC_ERROR_COMMAND_NAME_NOT_IN_SPEC:
+            include_help = true;
+            errorf("The command '%s' is not defined.\n", (char *) result.context);
+        case AC_ERROR_COMMAND_NAME_REQUIRED:
+            include_help = true;
+            errorf("Another command name is expected after %s.\n",
+                   (char *) result.context);
+        case AC_ERROR_COMMAND_NAME_INVALID:
+            include_help = true;
+            errorf("The command name %s is invalid.\n", (char *) result.context);
+        case AC_ERROR_ARGUMENT_MAX_EXCEEDED:
+            include_help = true;
+            errorf("Exceeded the maximum allowed number of arguments.\n");
+        case AC_ERROR_ARGUMENT_EXCEEDED_SPEC:
+            include_help = true;
+            errorf("Too many arguments. Got %zu which is more than expected.\n",
+                   (size_t) result.context);
+        case AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC:
+            include_help = true;
+            errorf("Missing arguments.\n");
+        case AC_ERROR_ARGUMENT_SPEC_NEEDS_NAME:
+            errorf("Programmer error: Argument at index %zu needs a name.\n",
+                   (size_t) result.context);
+        case AC_ERROR_MULTICOMMAND_NEEDS_NAME:
+            errorf("Programmer error: Multi-command at index %zu needs a name.\n",
+                   (size_t) result.context);
+    }
+#undef errorf
+
+    if(!include_help) {
+        return error;
+    }
+
+    if(result.single == NULL && result.multi == NULL) {
+        return NULL;
+    }
+
+    char *help =
+        result.single ? ac_command_help(result.single) : ac_multicommand_help(result.multi);
+    if(help == NULL) {
+        return NULL;
+    }
+
+    size_t cursor = strnlen(help, HELP_BUFFER_SZ);
+    cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+    (void)_ac_strcpy_safe(help, error, cursor, HELP_BUFFER_SZ);
+    free(error);
+
+    return help;
 }
