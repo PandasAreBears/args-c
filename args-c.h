@@ -104,6 +104,12 @@ struct ac_status {
     /// @brief A code that indicates the result of an operation.
     enum ac_status_code code;
 
+    /// @brief The command that was being processed when the error occurred, if at all.
+    struct ac_command_spec const *single;
+
+    /// @brief The multi-command that was being processed when the error occurred, if at all.
+    struct ac_multi_command_spec const *multi;
+
     /// @brief A status code specific context value that can be used to debug the cause of the
     /// specified status code.
     /// @par The context values are described by documentation in the @c ac_status_code enum.
@@ -269,14 +275,15 @@ inline static bool _ac_string_is_alpha(char const *const target, size_t const le
 /// @result @c AC_ERROR_SUCCESS when the user input is successfully parsed.
 static struct ac_status ac_parse_command(int const argc, char const *const *const argv,
                                          struct ac_command_spec const *const command,
-                                         struct ac_command *const                   args) {
+                                         struct ac_command *const            args) {
+#define AC_STATUS(...) (struct ac_status){.single = command, ##__VA_ARGS__};
+
     if(argv == NULL || command == NULL || args == NULL) {
-        return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
+        return AC_STATUS(.code = AC_ERROR_INVALID_PARAMETER);
     }
 
     if(argc > MAX_NUM_ARGS) {
-        return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_MAX_EXCEEDED,
-                                   .context = (void *) (size_t) argc};
+        return AC_STATUS(.code = AC_ERROR_ARGUMENT_MAX_EXCEEDED, .context = (void *) (size_t) argc);
     }
 
     bzero(args, sizeof(*args));
@@ -326,21 +333,20 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
     }
 
     if(n_arguments > command->n_arguments) {
-        return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_EXCEEDED_SPEC,
-                                   .context = (void *) n_arguments};
+        return AC_STATUS(.code = AC_ERROR_ARGUMENT_EXCEEDED_SPEC, .context = (void *) n_arguments);
     }
     if(n_arguments < command->n_arguments) {
-        return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC,
-                                   .context = (void *) n_arguments};
+        return AC_STATUS(.code    = AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC,
+                         .context = (void *) n_arguments);
     }
     if(n_options > MAX_NUM_OPTIONS) {
-        return (struct ac_status) {.code = AC_ERROR_OPTION_TOO_MANY, .context = (void *) n_options};
+        return AC_STATUS(.code = AC_ERROR_OPTION_TOO_MANY, .context = (void *) n_options);
     }
 
     struct ac_argument *const arguments =
         n_arguments > 0 ? (struct ac_argument *) calloc(n_arguments, sizeof(*arguments)) : NULL;
     if(n_arguments != 0 && arguments == NULL) {
-        return (struct ac_status) {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
+        return AC_STATUS(.code = AC_ERROR_MEMORY_ALLOC_FAILED);
     }
 
     // Arguments are assigned in the order that they appear in the command.
@@ -353,7 +359,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
         n_options > 0 ? (struct ac_option *) calloc(n_options, sizeof(*options)) : NULL;
     if(n_options != 0 && options == NULL) {
         free(arguments);
-        return (struct ac_status) {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
+        return AC_STATUS(.code = AC_ERROR_MEMORY_ALLOC_FAILED);
     }
 
 #define cleanup()                                                                                  \
@@ -372,7 +378,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
             case TAG_SHORT_OPTION: {
                 if(expecting_value) {
                     cleanup();
-                    return (struct ac_status) {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
+                    return AC_STATUS(.code = AC_ERROR_OPTION_VALUE_EXPECTED);
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -395,7 +401,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
                 if(option->option == NULL) {
                     cleanup();
-                    return (struct ac_status) {.code = AC_ERROR_OPTION_NAME_NOT_IN_SPEC};
+                    return AC_STATUS(.code = AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
                 }
 
                 if(option->option->is_flag) {
@@ -408,7 +414,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
             case TAG_OPTION_VALUE: {
                 if(!expecting_value) {
                     cleanup();
-                    return (struct ac_status) {.code = AC_ERROR_OPTION_NAME_EXPECTED};
+                    return AC_STATUS(.code = AC_ERROR_OPTION_NAME_EXPECTED);
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -425,7 +431,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
     if(expecting_value) {
         cleanup();
-        return (struct ac_status) {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
+        return AC_STATUS(.code = AC_ERROR_OPTION_VALUE_EXPECTED);
     }
 
     // Make sure all the required options are present.
@@ -442,8 +448,8 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
             if(!found) {
                 cleanup();
-                return (struct ac_status) {.code    = AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
-                                           .context = option_spec->long_name};
+                return AC_STATUS(.code    = AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
+                                 .context = option_spec->long_name);
             }
         }
     }
@@ -454,7 +460,9 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
     args->options     = options;
     args->command     = command;
 
-    return (struct ac_status) {.code = AC_ERROR_SUCCESS};
+    return AC_STATUS(.code = AC_ERROR_SUCCESS);
+#undef cleanup
+#undef AC_STATUS
 }
 
 /// @brief Parse user input using the provided @p root multi-command specification.
@@ -471,12 +479,13 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
                                               struct ac_multi_command_spec const *const root,
                                               struct ac_command *const                  args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
-        return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER, .context = NULL};
+        return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER, .multi = root};
     }
 
     if(argc > MAX_NUM_ARGS) {
         return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_MAX_EXCEEDED,
-                                   .context = (void *) (size_t) argc};
+                                   .context = (void *) (size_t) argc,
+                                   .multi   = root};
     }
 
     // Figure out how many of the arguments are multi-command names.
@@ -487,7 +496,7 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
         if(namelen == 0 && n_command_names == 0) {
             // Empty string is always an invalid start.
             return (struct ac_status) {.code    = AC_ERROR_COMMAND_NAME_INVALID,
-                                       .context = (void *) argv[i]};
+                                       .context = (void *) argv[i], .multi = root};
         }
         if(namelen == 0 || argv[i][0] == '-') {
             break;
@@ -496,9 +505,9 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
     }
 
     // Traverse the command tree to resolve the command.
-    struct ac_multi_command_spec const  *curr_node = root;
-    struct ac_command_spec const *command   = NULL;
-    size_t                               i         = 0;
+    struct ac_multi_command_spec const *curr_node = root;
+    struct ac_command_spec const       *command   = NULL;
+    size_t                              i         = 0;
     for(; (i < n_command_names) && (command == NULL); i++) {
         char const *const curr_name = argv[i];
         bool              found     = false;
@@ -514,7 +523,7 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
 
                 // If this is the last iteration, then we expect the node to be single.
                 if(i + 1 == n_command_names) {
-                    return (struct ac_status) {.code = AC_ERROR_COMMAND_NAME_REQUIRED};
+                    return (struct ac_status) {.code = AC_ERROR_COMMAND_NAME_REQUIRED, .multi = curr_node};
                 }
 
                 // Otherwise we've found a matching subcommand, progress to the next node.
@@ -524,7 +533,7 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
 
         if(!found) {
             return (struct ac_status) {.code    = AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
-                                       .context = (void *) curr_name};
+                                       .context = (void *) curr_name, .multi = curr_node};
         }
     }
 
@@ -781,7 +790,8 @@ ac_validate_multicommand(struct ac_multi_command_spec const *const command) {
 
 /// @brief Extracts an argument from the parsed `command` structure.
 /// @result The argument value, or `NULL` if the `name` wasn't in the `command`'s arguments.
-static struct ac_argument *ac_extract_argument(struct ac_command const *const command, char const *const name) {
+static struct ac_argument *ac_extract_argument(struct ac_command const *const command,
+                                               char const *const              name) {
     for(size_t i = 0; i < command->n_arguments; i++) {
         if(0 == strncmp(command->arguments[i].argument->name, name, MAX_STRING_LEN)) {
             return &command->arguments[i];
@@ -794,7 +804,7 @@ static struct ac_argument *ac_extract_argument(struct ac_command const *const co
 /// @brief Extracts an option from the parsed `command` structure.
 /// @result The option value, or `NULL` if the `name` wasn't in the `command`'s options.
 static struct ac_option *ac_extract_option(struct ac_command const *const command,
-                               char const *const              long_name) {
+                                           char const *const              long_name) {
     for(size_t i = 0; i < command->n_options; i++) {
         if(0 == strncmp(command->options[i].option->long_name, long_name, MAX_STRING_LEN)) {
             return &command->options[i];
