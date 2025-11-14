@@ -1,1 +1,5 @@
 args-c-test*
+docs/
+.venv
+.vscode
+.DS_Store

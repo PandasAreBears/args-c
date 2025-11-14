@@ -1,3 +1,8 @@
+/**
+ * @file args-c.h
+ * @brief Single-header command-line argument parser for C
+ */
+
 #pragma once
 
 #include <assert.h>
@@ -8,37 +13,76 @@
 #include <string.h>
 
 enum {
+    /// @brief The maximum length of a string being parsed by args-c (in any context).
     MAX_STRING_LEN = 0x1000,
 };
 enum {
+    /// @brief The maximum number of arguments that will be parsed by a command spec.
     MAX_NUM_ARGS = 0x100,
 };
 enum {
+    /// @brief The size of a help message buffer.
     HELP_BUFFER_SZ = 0x1000,
 };
 enum {
+    /// @brief The maximum number of options that will be parsed by a command spec.
     MAX_NUM_OPTIONS = 0x100,
 };
 
-enum ac_error {
+enum ac_error_code {
+    /// @brief Operation success.
+    /// @par Context: None
     AC_ERROR_SUCCESS,
 
+    /// @brief A parameter was invalid
+    /// @par Context: None
     AC_ERROR_INVALID_PARAMETER,
+    /// @brief Memory allocation failed.
+    /// @par Context: None.
     AC_ERROR_MEMORY_ALLOC_FAILED,
-    AC_ERROR_EXCEEDED_MAX_NUM_ARGS,
 
+    /// @brief A resolved option name was not found in the command specification.
+    /// @par Context: char * of the option name used.
     AC_ERROR_OPTION_NAME_NOT_IN_SPEC,
+    /// @brief An option name was expected, but a value was found instead.
+    /// @par Context: None.
     AC_ERROR_OPTION_NAME_EXPECTED,
+    /// @brief An option name is required in the command spec but not provided.
+    /// @par Context: char * of the option name expected.
     AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
+    /// @brief An option value was expected but something else was provided instead.
+    /// @par Context: None,
     AC_ERROR_OPTION_VALUE_EXPECTED,
+    /// @brief The number of options provided exceeded @c MAX_NUM_OPTIONS.
+    /// @par Context: size_t of the number of options provided.
     AC_ERROR_OPTION_TOO_MANY,
 
+    /// @brief A resolved command name was not found in the command specification.
+    /// @par Context: char * of the command name used.
     AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
+    /// @brief An command name is required, but not provided.
+    /// @par Context: None,
     AC_ERROR_COMMAND_NAME_REQUIRED,
+    /// @brief The provided command name is invalid.
+    /// @par Context: char * of the invalid command name.
     AC_ERROR_COMMAND_NAME_INVALID,
 
+    /// @brief Too many arguments were provided. This value can be configured with @c MAX_NUM_ARGS
+    /// @par Context: size_t of the number of arguments used.
+    AC_ERROR_ARGUMENT_MAX_EXCEEDED,
+    /// @brief The number of arguments provided exceeded the number of arguments in the command
+    /// spec.
+    /// @par Context: size_t of the number of arguments provided.
     AC_ERROR_ARGUMENT_EXCEEDED_SPEC,
-    AC_ERROR_ARGUMENT_NOT_FOUND,
+    /// @brief The number of arguments provided is smaller than the number of arguments in the
+    /// command spec.
+    /// @par Context: size_t of the number of arguments provided.
+    AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC,
+};
+
+struct ac_error {
+    enum ac_error_code code;
+    void              *context;
 };
 
 struct ac_argument_spec {
@@ -58,7 +102,7 @@ struct ac_option_spec {
 struct ac_command_spec {
     char *help;
 
-    // optional values to assign context or uniqely identify this command.
+    // optional values to assign context or uniquely identify this command.
     size_t id;
     void  *context;
 
@@ -125,21 +169,21 @@ static bool ac_string_is_alpha(char const *const target, size_t const length) {
     return true;
 }
 
-static enum ac_error ac_parse_command(int const argc, char const *const *const argv,
-                                      struct ac_command_spec const *const command,
-                                      struct ac_command *const            args) {
+static struct ac_error ac_parse_command(int const argc, char const *const *const argv,
+                                        struct ac_command_spec const *const command,
+                                        struct ac_command *const            args) {
     if(argv == NULL || command == NULL || args == NULL) {
-        return AC_ERROR_INVALID_PARAMETER;
+        return {.code = AC_ERROR_INVALID_PARAMETER};
     }
 
     if(argc > MAX_NUM_ARGS) {
-        return AC_ERROR_EXCEEDED_MAX_NUM_ARGS;
+        return {.code = AC_ERROR_ARGUMENT_MAX_EXCEEDED, .context = (void *) (size_t) argc};
     }
 
     bzero(args, sizeof(*args));
 
     // We're going to continually reference the length of these strings, so
-    // prepopulate an array for fast lookup.
+    // pre-populate an array for fast lookup.
     size_t strlens[MAX_NUM_ARGS] = {0};
     for(size_t i = 0; i < argc; i++) {
         strlens[i] = strnlen(argv[i], MAX_STRING_LEN);
@@ -173,7 +217,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
             continue;
         }
 
-        // Anything that's not a option name is implictly an argument or value.
+        // Anything that's not a option name is implicitly an argument or value.
         if(!arguments_complete) {
             n_arguments++;
             tags[i] = TAG_ARGUMENT;
@@ -183,19 +227,19 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
     }
 
     if(n_arguments > command->n_arguments) {
-        return AC_ERROR_ARGUMENT_EXCEEDED_SPEC;
+        return {.code = AC_ERROR_ARGUMENT_EXCEEDED_SPEC, .context = (void *) n_arguments};
     }
     if(n_arguments < command->n_arguments) {
-        return AC_ERROR_ARGUMENT_NOT_FOUND;
+        return {.code = AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC, .context = (void *) n_arguments};
     }
     if(n_options > MAX_NUM_OPTIONS) {
-        return AC_ERROR_OPTION_TOO_MANY;
+        return {.code = AC_ERROR_OPTION_TOO_MANY, .context = (void *) n_options};
     }
 
     struct ac_argument *const arguments =
         n_arguments > 0 ? (struct ac_argument *) calloc(n_arguments, sizeof(*arguments)) : NULL;
     if(n_arguments != 0 && arguments == NULL) {
-        return AC_ERROR_MEMORY_ALLOC_FAILED;
+        return {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
     }
 
     // Arguments are assigned in the order that they appear in the command.
@@ -208,7 +252,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
         n_options > 0 ? (struct ac_option *) calloc(n_options, sizeof(*options)) : NULL;
     if(n_options != 0 && options == NULL) {
         free(arguments);
-        return AC_ERROR_MEMORY_ALLOC_FAILED;
+        return {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
     }
 
 #define cleanup()                                                                                  \
@@ -227,7 +271,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
             case TAG_SHORT_OPTION: {
                 if(expecting_value) {
                     cleanup();
-                    return AC_ERROR_OPTION_VALUE_EXPECTED;
+                    return {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -239,16 +283,18 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
                         if(option_spec->has_short_name && option_spec->short_name == value[1]) {
                             option->option = option_spec;
                         }
-                    } else { // TAG_LONG_OPTION
+                    } else if(tags[i] == TAG_LONG_OPTION) {
                         if(0 == strncmp(option_spec->long_name, &value[2], strlens[i] - 2)) {
                             option->option = option_spec;
                         }
+                    } else {
+                        assert(false);
                     }
                 }
 
                 if(option->option == NULL) {
                     cleanup();
-                    return AC_ERROR_OPTION_NAME_NOT_IN_SPEC;
+                    return {.code = AC_ERROR_OPTION_NAME_NOT_IN_SPEC};
                 }
 
                 if(option->option->is_flag) {
@@ -261,7 +307,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
             case TAG_OPTION_VALUE: {
                 if(!expecting_value) {
                     cleanup();
-                    return AC_ERROR_OPTION_NAME_EXPECTED;
+                    return {.code = AC_ERROR_OPTION_NAME_EXPECTED};
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -278,7 +324,7 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
 
     if(expecting_value) {
         cleanup();
-        return AC_ERROR_OPTION_VALUE_EXPECTED;
+        return {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
     }
 
     // Make sure all the required options are present.
@@ -295,7 +341,8 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
 
             if(!found) {
                 cleanup();
-                return AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC;
+                return {.code    = AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
+                        .context = option_spec->long_name};
             }
         }
     }
@@ -306,28 +353,28 @@ static enum ac_error ac_parse_command(int const argc, char const *const *const a
     args->options     = options;
     args->command     = command;
 
-    return AC_ERROR_SUCCESS;
+    return {.code = AC_ERROR_SUCCESS};
 }
 
-static enum ac_error ac_parse_multicommand(int const argc, char const *const *const argv,
-                                           struct ac_multicommand_spec const *const root,
-                                           struct ac_command *const                 args) {
+static struct ac_error ac_parse_multicommand(int const argc, char const *const *const argv,
+                                             struct ac_multicommand_spec const *const root,
+                                             struct ac_command *const                 args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
-        return AC_ERROR_INVALID_PARAMETER;
+        return {.code = AC_ERROR_INVALID_PARAMETER, .context = NULL};
     }
 
     if(argc > MAX_NUM_ARGS) {
-        return AC_ERROR_EXCEEDED_MAX_NUM_ARGS;
+        return {.code = AC_ERROR_ARGUMENT_MAX_EXCEEDED, .context = (void *) (size_t) argc};
     }
 
-    // Figure out how many of the arguments are multicommand names.
-    enum ac_error result          = AC_ERROR_SUCCESS;
-    size_t        n_command_names = 0;
+    // Figure out how many of the arguments are multi-command names.
+    enum ac_error_code result          = AC_ERROR_SUCCESS;
+    size_t             n_command_names = 0;
     for(size_t i = 0; i < argc; i++) {
         size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
         if(namelen == 0 && n_command_names == 0) {
             // Empty string is always an invalid start.
-            return AC_ERROR_COMMAND_NAME_INVALID;
+            return {.code = AC_ERROR_COMMAND_NAME_INVALID, .context = (void *) argv[i]};
         }
         if(namelen == 0 || argv[i][0] == '-') {
             break;
@@ -354,7 +401,7 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
 
                 // If this is the last iteration, then we expect the node to be terminal.
                 if(i + 1 == n_command_names) {
-                    return AC_ERROR_COMMAND_NAME_REQUIRED;
+                    return {.code = AC_ERROR_COMMAND_NAME_REQUIRED};
                 }
 
                 // Otherwise we've found a matching subcommand, progress to the next node.
@@ -363,7 +410,7 @@ static enum ac_error ac_parse_multicommand(int const argc, char const *const *co
         }
 
         if(!found) {
-            return AC_ERROR_COMMAND_NAME_NOT_IN_SPEC;
+            return {.code = AC_ERROR_COMMAND_NAME_NOT_IN_SPEC, .context = (void *) curr_name};
         }
     }
 
