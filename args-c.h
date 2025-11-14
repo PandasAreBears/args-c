@@ -75,6 +75,8 @@ enum ac_command_type {
 };
 
 struct ac_multicommand_spec {
+    char *help;
+
     size_t n_subcommands;
     struct ac_multicommand_subcommand {
         char                *name;
@@ -85,7 +87,6 @@ struct ac_multicommand_spec {
             } terminal;
 
             struct {
-                char                        *help;
                 struct ac_multicommand_spec *subcommands;
             } parent;
         };
@@ -396,8 +397,7 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
 
     if(command->n_arguments > 0) {
         assert(command->n_arguments <= MAX_NUM_ARGS);
-        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
-        cursor += ac_strcpy_safe(help, "Arguments:\n", cursor, HELP_BUFFER_SZ);
+        cursor += ac_strcpy_safe(help, "\nArguments:\n", cursor, HELP_BUFFER_SZ);
 
         size_t max_argument_name_len = 0;
         for(size_t i = 0; i < command->n_arguments; i++) {
@@ -430,8 +430,7 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
 
     if(command->n_options > 0) {
         assert(command->n_options <= MAX_NUM_OPTIONS);
-        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
-        cursor += ac_strcpy_safe(help, "Options:\n", cursor, HELP_BUFFER_SZ);
+        cursor += ac_strcpy_safe(help, "\nOptions:\n", cursor, HELP_BUFFER_SZ);
 
         bool   any_required        = false;
         size_t max_option_name_len = 0;
@@ -479,6 +478,58 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
             }
             cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
         }
+    }
+
+    return help;
+}
+
+static char *ac_multicommand_help(struct ac_multicommand_spec const *const command) {
+    char *const help = (char *) malloc(HELP_BUFFER_SZ);
+    if(help == NULL) {
+        return NULL;
+    }
+
+    size_t cursor = 0;
+
+    if(command->help != NULL) {
+        cursor += ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
+        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+    }
+
+    size_t max_command_name_len = 0;
+    for(size_t i = 0; i < command->n_subcommands; i++) {
+        assert(command->subcommands[i].name != NULL);
+        size_t const name_len = strnlen(command->subcommands[i].name, MAX_STRING_LEN);
+        max_command_name_len  = name_len > max_command_name_len ? name_len : max_command_name_len;
+    }
+
+    cursor += ac_strcpy_safe(help, "\nCommands:\n", cursor, HELP_BUFFER_SZ);
+    for(size_t i = 0; i < command->n_subcommands; i++) {
+        cursor += ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
+        cursor += ac_strcpy_safe(help, command->subcommands[i].name, cursor, HELP_BUFFER_SZ);
+
+        size_t const name_len = strnlen(command->subcommands[i].name, MAX_STRING_LEN);
+        for(size_t j = 0; j < (max_command_name_len - name_len) + 1; j++) {
+            cursor += ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
+        }
+
+        switch(command->subcommands[i].type) {
+            case COMMAND_TERMINAL: {
+                if(command->subcommands[i].terminal.command->help) {
+                    cursor += ac_strcpy_safe(help, command->subcommands[i].terminal.command->help,
+                                             cursor, HELP_BUFFER_SZ);
+                }
+                break;
+            }
+            case COMMAND_PARENT: {
+                if(command->subcommands[i].parent.subcommands->help) {
+                    cursor += ac_strcpy_safe(help, command->subcommands[i].parent.subcommands->help,
+                                             cursor, HELP_BUFFER_SZ);
+                }
+                break;
+            }
+        }
+        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
     }
 
     return help;

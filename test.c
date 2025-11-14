@@ -249,7 +249,8 @@ static void test_command_3() {
 }
 
 static struct ac_multicommand_spec const
-    command4 = {.n_subcommands = 3,
+    command4 = {.help          = "Multiple commands",
+                .n_subcommands = 3,
                 .subcommands =
                     (struct ac_multicommand_subcommand[]) {
                         {.name = "command1",
@@ -267,10 +268,10 @@ static struct ac_multicommand_spec const
                         {.name = "subcommand3",
                          .type = COMMAND_PARENT,
                          .parent =
-                             {.help = "do subcommand3",
-                              .subcommands =
+                             {.subcommands =
                                   (struct ac_multicommand_spec[]) {
-                                      {.n_subcommands = 1,
+                                      {.help          = "do subcommand3",
+                                       .n_subcommands = 1,
                                        .subcommands = (struct ac_multicommand_subcommand[]) {{.name =
                                                                                                   "command3",
                                                                                               .type = COMMAND_TERMINAL,
@@ -287,9 +288,11 @@ static struct ac_multicommand_spec const
                              }}}};
 
 static void test_command_4() {
-    char const *const                   argv1[]     = {""};
-    struct ac_command                   args        = {0};
-    enum ac_error                       result      = ac_parse_multicommand(1, argv1, &command4, &args);
+    printf("%s\n", ac_multicommand_help(&command4));
+
+    char const *const argv1[] = {""};
+    struct ac_command args    = {0};
+    enum ac_error     result  = ac_parse_multicommand(1, argv1, &command4, &args);
     assert_int_eq(result, AC_ERROR_COMMAND_NAME_INVALID);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -297,8 +300,8 @@ static void test_command_4() {
     assert_ptr_eq(args.arguments, NULL);
     assert_ptr_eq(args.options, NULL);
 
-    char const *const                   argv2[]     = {"subcommand3"};
-    result      = ac_parse_multicommand(1, argv2, &command4, &args);
+    char const *const argv2[] = {"subcommand3"};
+    result                    = ac_parse_multicommand(1, argv2, &command4, &args);
     assert_int_eq(result, AC_ERROR_COMMAND_NAME_REQUIRED);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -306,8 +309,8 @@ static void test_command_4() {
     assert_ptr_eq(args.arguments, NULL);
     assert_ptr_eq(args.options, NULL);
 
-    char const *const                   argv3[]     = {"blah"};
-    result      = ac_parse_multicommand(1, argv3, &command4, &args);
+    char const *const argv3[] = {"blah"};
+    result                    = ac_parse_multicommand(1, argv3, &command4, &args);
     assert_int_eq(result, AC_ERROR_COMMAND_NAME_NOT_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -315,8 +318,8 @@ static void test_command_4() {
     assert_ptr_eq(args.arguments, NULL);
     assert_ptr_eq(args.options, NULL);
 
-    char const *const                   argv4[]     = {"command1"};
-    result      = ac_parse_multicommand(1, argv4, &command4, &args);
+    char const *const argv4[] = {"command1"};
+    result                    = ac_parse_multicommand(1, argv4, &command4, &args);
     assert_int_eq(result, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, &command1);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -324,8 +327,8 @@ static void test_command_4() {
     assert_ptr_eq(args.arguments, NULL);
     assert_ptr_eq(args.options, NULL);
 
-    char const *const                   argv5[]     = {"command2", "--apple", "5"};
-    result      = ac_parse_multicommand(3, argv5, &command4, &args);
+    char const *const argv5[] = {"command2", "--apple", "5"};
+    result                    = ac_parse_multicommand(3, argv5, &command4, &args);
     assert_int_eq(result, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, &command2);
     assert_sizet_eq(args.n_arguments, 0UL);
@@ -333,8 +336,9 @@ static void test_command_4() {
     assert_ptr_eq(args.arguments, NULL);
     assert_ptr_neq(args.options, NULL);
 
-    char const *const                   argv6[]     = {"subcommand3", "command3", "/path/to/a", "/path/to/b", "--banana", "10"};
-    result      = ac_parse_multicommand(6, argv6, &command4, &args);
+    char const *const argv6[] = {"subcommand3", "command3", "/path/to/a",
+                                 "/path/to/b",  "--banana", "10"};
+    result                    = ac_parse_multicommand(6, argv6, &command4, &args);
     assert_int_eq(result, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, &command3);
     assert_sizet_eq(args.n_arguments, 2UL);
