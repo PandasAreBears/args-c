@@ -212,7 +212,7 @@ static struct ac_command_spec const command3 = {.help        = "Testing command 
                                                           .has_short_name = true,
                                                           .short_name     = 'c',
                                                           .is_flag        = true,
-                                                          .help = "are there cherries?",
+                                                          .help           = "are there cherries?",
                                                     },
                                                 }};
 
@@ -273,35 +273,24 @@ static struct ac_multi_command_spec const command4 = {
     .n_subcommands = 3,
     .subcommands   = (struct ac_multi_command_subcommand[]) {
         {
-              .name           = "command1",
-              .type           = COMMAND_SINGLE,
-              .single.command = (struct ac_command_spec *) &command1,
+              .name   = "command1",
+              .type   = COMMAND_SINGLE,
+              .single = (struct ac_command_spec *) &command1,
         },
         {
-              .name           = "command2",
-              .type           = COMMAND_SINGLE,
-              .single.command = (struct ac_command_spec *) &command2,
+              .name   = "command2",
+              .type   = COMMAND_SINGLE,
+              .single = (struct ac_command_spec *) &command2,
         },
-        {.name = "subcommand3",
-           .type = COMMAND_MULTI,
-           .multi.subcommands =
-               (struct ac_multi_command_spec[]) {
-                 {.help          = "do subcommand3",
-                    .n_subcommands = 1,
-                    .subcommands =
-                        (struct ac_multi_command_subcommand[]) {
-                          {.name = "command3",
-                             .type = COMMAND_SINGLE,
-                             .single =
-                                 {
-                                     .command = (struct ac_command_spec *) &command3,
-                               }}
-
-                      }
-
-                 }}
-
-        }}};
+        {.name  = "subcommand3",
+           .type  = COMMAND_MULTI,
+           .multi = (struct ac_multi_command_spec[]) {
+             {.help          = "do subcommand3",
+                .n_subcommands = 1,
+                .subcommands   = (struct ac_multi_command_subcommand[]) {
+                  {.name   = "command3",
+                       .type   = COMMAND_SINGLE,
+                       .single = (struct ac_command_spec *) &command3}}}}}}};
 
 static void test_command_4() {
     printf("%s\n", ac_multi_command_help(&command4));

@@ -10,7 +10,7 @@ enum command_identifier {
 
 static struct ac_command_spec compression = {.help        = "Perform zlib compression.",
                                              .n_arguments = 1,
-                                             .id          = COMPRESSION,
+                                             .context     = (void *) COMPRESSION,
                                              .arguments =
                                                  (struct ac_argument_spec[]) {
                                                      {
@@ -38,7 +38,7 @@ static struct ac_command_spec compression = {.help        = "Perform zlib compre
 static struct ac_command_spec decompression = {
     .help        = "Perform zlib decompression.",
     .n_arguments = 1,
-    .id          = DECOMPRESSION,
+    .context     = (void *) DECOMPRESSION,
     .arguments =
         (struct ac_argument_spec[]) {
             {
@@ -69,14 +69,14 @@ static struct ac_multi_command_spec multi_command = {
     .subcommands =
         (struct ac_multi_command_subcommand[]) {
             {
-                .name           = "compress",
-                .type           = COMMAND_SINGLE,
-                .single.command = &compression,
+                .name   = "compress",
+                .type   = COMMAND_SINGLE,
+                .single = &compression,
             },
             {
-                .name           = "decompress",
-                .type           = COMMAND_SINGLE,
-                .single.command = &decompression,
+                .name   = "decompress",
+                .type   = COMMAND_SINGLE,
+                .single = &decompression,
             },
             // Nested subcommands can also be specfied here using a `COMMAND_PARENT` type, and a
             // .parent field in the struct.
@@ -109,7 +109,7 @@ int main(int argc, char const *const argv[]) {
     }
 
     // Figure out which command we're doing using the context value.
-    switch(args.command->id) {
+    switch((size_t) args.command->context) {
         case COMPRESSION:
             printf("Doing compression!\n");
             break;

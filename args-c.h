@@ -174,8 +174,6 @@ struct ac_command_spec {
     char *help;
 
     /// @brief An optional value to assign context or uniquely identify this command.
-    size_t id;
-    /// @brief An optional value to assign context or uniquely identify this command.
     void *context;
 
     /// @brief The number of arguments that this command expects.
@@ -209,12 +207,12 @@ struct ac_multi_command_spec {
         /// @brief The multi-command or command itself.
         union {
             struct {
-                struct ac_command_spec *command;
-            } single;
+                struct ac_command_spec *single;
+            };
 
             struct {
-                struct ac_multi_command_spec *subcommands;
-            } multi;
+                struct ac_multi_command_spec *multi;
+            };
         };
     } *subcommands;
 };
@@ -380,7 +378,7 @@ static struct ac_status ac_command_parse(int const argc, char const *const *cons
                 if(expecting_value) {
                     cleanup();
                     return AC_STATUS(.code    = AC_ERROR_OPTION_VALUE_EXPECTED,
-                                     .context = (char *) argv[i-1]);
+                                     .context = (char *) argv[i - 1]);
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -520,7 +518,7 @@ static struct ac_status ac_multi_command_parse(int const argc, char const *const
                 found = true;
 
                 if(curr_node->subcommands[j].type == COMMAND_SINGLE) {
-                    command = curr_node->subcommands[j].single.command;
+                    command = curr_node->subcommands[j].single;
                     break;
                 }
 
@@ -532,7 +530,7 @@ static struct ac_status ac_multi_command_parse(int const argc, char const *const
                 }
 
                 // Otherwise we've found a matching subcommand, progress to the next node.
-                curr_node = curr_node->subcommands[j].multi.subcommands;
+                curr_node = curr_node->subcommands[j].multi;
             }
         }
 
@@ -693,16 +691,16 @@ static char *ac_multi_command_help(struct ac_multi_command_spec const *const com
 
         switch(command->subcommands[i].type) {
             case COMMAND_SINGLE: {
-                if(command->subcommands[i].single.command->help) {
-                    cursor += _ac_strcpy_safe(help, command->subcommands[i].single.command->help,
-                                              cursor, HELP_BUFFER_SZ);
+                if(command->subcommands[i].single->help) {
+                    cursor += _ac_strcpy_safe(help, command->subcommands[i].single->help, cursor,
+                                              HELP_BUFFER_SZ);
                 }
                 break;
             }
             case COMMAND_MULTI: {
-                if(command->subcommands[i].multi.subcommands->help) {
-                    cursor += _ac_strcpy_safe(help, command->subcommands[i].multi.subcommands->help,
-                                              cursor, HELP_BUFFER_SZ);
+                if(command->subcommands[i].multi->help) {
+                    cursor += _ac_strcpy_safe(help, command->subcommands[i].multi->help, cursor,
+                                              HELP_BUFFER_SZ);
                 }
                 break;
             }
@@ -769,8 +767,7 @@ ac_multi_command_validate(struct ac_multi_command_spec const *const command) {
 
         switch(command->subcommands[i].type) {
             case COMMAND_SINGLE: {
-                struct ac_status const result =
-                    ac_command_validate(command->subcommands->single.command);
+                struct ac_status const result = ac_command_validate(command->subcommands->single);
                 if(!ac_status_is_success(result)) {
                     return result;
                 }
@@ -778,7 +775,7 @@ ac_multi_command_validate(struct ac_multi_command_spec const *const command) {
             }
             case COMMAND_MULTI: {
                 struct ac_status const result =
-                    ac_multi_command_validate(command->subcommands->multi.subcommands);
+                    ac_multi_command_validate(command->subcommands->multi);
                 if(!ac_status_is_success(result)) {
                     return result;
                 }
