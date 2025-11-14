@@ -6,7 +6,13 @@ A header-only command line argument parser for the C programming language with a
 1. Subcommand support.
 2. Help message generation.
 3. Command validation (optional).
-4. Declarative command structures.
+
+## Terminology
+
+- User input: An array of string provided to args-c to be parsed. Typically in the form of `&argv[1]`.
+- Command Spec: The specification parsed to args-c which declaratively describes how to parse user input.
+- Argument: A required, implicit value on the command line. Like unix's `cat <file>`.
+- Option: A named value on the command line. Like unix's `sed -i <file>`.
 
 
 ## Simple usage

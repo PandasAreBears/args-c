@@ -56,6 +56,18 @@ enum ac_status_code {
     /// @brief The number of options provided exceeded @c MAX_NUM_OPTIONS.
     /// @par Context: size_t of the number of options provided.
     AC_ERROR_OPTION_TOO_MANY,
+    /// @brief An option specification was provided that didn't contain a long name for the option.
+    /// @par Context: size_t of the index of the bad option in the `ac_command_spec`.
+    AC_ERROR_OPTION_SPEC_NEEDS_NAME,
+    /// @brief An option specification was provided that had an invalid long name.
+    /// @par Context: size_t of the index of the bad option in the `ac_command_spec`.
+    AC_ERROR_OPTION_LONG_NAME_INVALID,
+    /// @brief An option specification was provided that had an invalid short name.
+    /// @par Context: size_t of the index of the bad option in the `ac_command_spec`.
+    AC_ERROR_OPTION_SHORT_NAME_INVALID,
+    /// @brief An option specification was that had both `is_flag` and `required` set.
+    /// @par Context: size_t of the index of the bad option in the `ac_command_spec`.
+    AC_ERROR_OPTION_FLAG_AND_REQUIRED,
 
     /// @brief A resolved command name was not found in the command specification.
     /// @par Context: char * of the command name used.
@@ -78,6 +90,13 @@ enum ac_status_code {
     /// command spec.
     /// @par Context: size_t of the number of arguments provided.
     AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC,
+    /// @brief An argument specification was provided that didn't contain a name for the argument.
+    /// @par Context: size_t of the index of the bad argument in the `ac_command_spec`.
+    AC_ERROR_ARGUMENT_SPEC_NEEDS_NAME,
+
+    /// @brief The provided multi-command contains a subcommand without a name..
+    /// @par Context: size_t of the index of the invalid subcommand.
+    AC_ERROR_MULTICOMMAND_NEEDS_NAME,
 };
 
 /// @brief Describes the result of an args-c operation.
@@ -89,6 +108,12 @@ struct ac_status {
     /// @par The context values are described by documentation in the @c ac_status_code enum.
     void *context;
 };
+
+/// @brief A convenience function for determining if the provided `status` indicates a successful
+/// operation.
+static bool ac_status_is_success(struct ac_status const status) {
+    return status.code == AC_ERROR_SUCCESS;
+}
 
 /// @brief Encapsulates an argument specification.
 /// @par In args-c, an 'argument' is a required positional value. For example, the file argument to
@@ -183,7 +208,7 @@ struct ac_multicommand_spec {
             struct {
                 struct ac_multicommand_spec *subcommands;
             } parent;
-        } command;
+        };
     } *subcommands;
 };
 
@@ -245,11 +270,12 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
                                          struct ac_command_spec const *const command,
                                          struct ac_command *const            args) {
     if(argv == NULL || command == NULL || args == NULL) {
-        return {.code = AC_ERROR_INVALID_PARAMETER};
+        return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
     }
 
     if(argc > MAX_NUM_ARGS) {
-        return {.code = AC_ERROR_ARGUMENT_MAX_EXCEEDED, .context = (void *) (size_t) argc};
+        return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_MAX_EXCEEDED,
+                                   .context = (void *) (size_t) argc};
     }
 
     bzero(args, sizeof(*args));
@@ -299,19 +325,21 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
     }
 
     if(n_arguments > command->n_arguments) {
-        return {.code = AC_ERROR_ARGUMENT_EXCEEDED_SPEC, .context = (void *) n_arguments};
+        return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_EXCEEDED_SPEC,
+                                   .context = (void *) n_arguments};
     }
     if(n_arguments < command->n_arguments) {
-        return {.code = AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC, .context = (void *) n_arguments};
+        return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC,
+                                   .context = (void *) n_arguments};
     }
     if(n_options > MAX_NUM_OPTIONS) {
-        return {.code = AC_ERROR_OPTION_TOO_MANY, .context = (void *) n_options};
+        return (struct ac_status) {.code = AC_ERROR_OPTION_TOO_MANY, .context = (void *) n_options};
     }
 
     struct ac_argument *const arguments =
         n_arguments > 0 ? (struct ac_argument *) calloc(n_arguments, sizeof(*arguments)) : NULL;
     if(n_arguments != 0 && arguments == NULL) {
-        return {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
+        return (struct ac_status) {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
     }
 
     // Arguments are assigned in the order that they appear in the command.
@@ -324,7 +352,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
         n_options > 0 ? (struct ac_option *) calloc(n_options, sizeof(*options)) : NULL;
     if(n_options != 0 && options == NULL) {
         free(arguments);
-        return {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
+        return (struct ac_status) {.code = AC_ERROR_MEMORY_ALLOC_FAILED};
     }
 
 #define cleanup()                                                                                  \
@@ -343,7 +371,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
             case TAG_SHORT_OPTION: {
                 if(expecting_value) {
                     cleanup();
-                    return {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
+                    return (struct ac_status) {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -366,7 +394,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
                 if(option->option == NULL) {
                     cleanup();
-                    return {.code = AC_ERROR_OPTION_NAME_NOT_IN_SPEC};
+                    return (struct ac_status) {.code = AC_ERROR_OPTION_NAME_NOT_IN_SPEC};
                 }
 
                 if(option->option->is_flag) {
@@ -379,7 +407,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
             case TAG_OPTION_VALUE: {
                 if(!expecting_value) {
                     cleanup();
-                    return {.code = AC_ERROR_OPTION_NAME_EXPECTED};
+                    return (struct ac_status) {.code = AC_ERROR_OPTION_NAME_EXPECTED};
                 }
 
                 struct ac_option *const option = &options[options_idx];
@@ -396,7 +424,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
     if(expecting_value) {
         cleanup();
-        return {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
+        return (struct ac_status) {.code = AC_ERROR_OPTION_VALUE_EXPECTED};
     }
 
     // Make sure all the required options are present.
@@ -413,8 +441,8 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
 
             if(!found) {
                 cleanup();
-                return {.code    = AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
-                        .context = option_spec->long_name};
+                return (struct ac_status) {.code    = AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC,
+                                           .context = option_spec->long_name};
             }
         }
     }
@@ -425,7 +453,7 @@ static struct ac_status ac_parse_command(int const argc, char const *const *cons
     args->options     = options;
     args->command     = command;
 
-    return {.code = AC_ERROR_SUCCESS};
+    return (struct ac_status) {.code = AC_ERROR_SUCCESS};
 }
 
 /// @brief Parse user input using the provided @p root multi-command specification.
@@ -442,11 +470,12 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
                                               struct ac_multicommand_spec const *const root,
                                               struct ac_command *const                 args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
-        return {.code = AC_ERROR_INVALID_PARAMETER, .context = NULL};
+        return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER, .context = NULL};
     }
 
     if(argc > MAX_NUM_ARGS) {
-        return {.code = AC_ERROR_ARGUMENT_MAX_EXCEEDED, .context = (void *) (size_t) argc};
+        return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_MAX_EXCEEDED,
+                                   .context = (void *) (size_t) argc};
     }
 
     // Figure out how many of the arguments are multi-command names.
@@ -456,7 +485,8 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
         size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
         if(namelen == 0 && n_command_names == 0) {
             // Empty string is always an invalid start.
-            return {.code = AC_ERROR_COMMAND_NAME_INVALID, .context = (void *) argv[i]};
+            return (struct ac_status) {.code    = AC_ERROR_COMMAND_NAME_INVALID,
+                                       .context = (void *) argv[i]};
         }
         if(namelen == 0 || argv[i][0] == '-') {
             break;
@@ -477,22 +507,23 @@ static struct ac_status ac_parse_multicommand(int const argc, char const *const 
                 found = true;
 
                 if(curr_node->subcommands[j].type == COMMAND_TERMINAL) {
-                    command = curr_node->subcommands[j].command.terminal.command;
+                    command = curr_node->subcommands[j].terminal.command;
                     break;
                 }
 
                 // If this is the last iteration, then we expect the node to be terminal.
                 if(i + 1 == n_command_names) {
-                    return {.code = AC_ERROR_COMMAND_NAME_REQUIRED};
+                    return (struct ac_status) {.code = AC_ERROR_COMMAND_NAME_REQUIRED};
                 }
 
                 // Otherwise we've found a matching subcommand, progress to the next node.
-                curr_node = curr_node->subcommands[j].command.parent.subcommands;
+                curr_node = curr_node->subcommands[j].parent.subcommands;
             }
         }
 
         if(!found) {
-            return {.code = AC_ERROR_COMMAND_NAME_NOT_IN_SPEC, .context = (void *) curr_name};
+            return (struct ac_status) {.code    = AC_ERROR_COMMAND_NAME_NOT_IN_SPEC,
+                                       .context = (void *) curr_name};
         }
     }
 
@@ -650,16 +681,16 @@ static char *ac_multicommand_help(struct ac_multicommand_spec const *const comma
 
         switch(command->subcommands[i].type) {
             case COMMAND_TERMINAL: {
-                if(command->subcommands[i].command.terminal.command->help) {
-                    cursor += _ac_strcpy_safe(help, command->subcommands[i].command.terminal.command->help,
+                if(command->subcommands[i].terminal.command->help) {
+                    cursor += _ac_strcpy_safe(help, command->subcommands[i].terminal.command->help,
                                               cursor, HELP_BUFFER_SZ);
                 }
                 break;
             }
             case COMMAND_PARENT: {
-                if(command->subcommands[i].command.parent.subcommands->help) {
+                if(command->subcommands[i].parent.subcommands->help) {
                     cursor +=
-                        _ac_strcpy_safe(help, command->subcommands[i].command.parent.subcommands->help,
+                        _ac_strcpy_safe(help, command->subcommands[i].parent.subcommands->help,
                                         cursor, HELP_BUFFER_SZ);
                 }
                 break;
@@ -669,4 +700,78 @@ static char *ac_multicommand_help(struct ac_multicommand_spec const *const comma
     }
 
     return help;
+}
+
+/// @brief Determine if the provided `command` is a valid spec, therefore may safely be passed to
+/// `ac_parse_command`.
+/// @result `AC_ERROR_SUCCESS` when the `command` is valid.
+static struct ac_status ac_validate_command(struct ac_command_spec const *const command) {
+    if(command == NULL) {
+        return (struct ac_status)(struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
+    }
+
+    for(size_t i = 0; i < command->n_arguments; i++) {
+        struct ac_argument_spec const *const arg = &command->arguments[i];
+        if(arg->name == NULL) {
+            return (struct ac_status) {.code    = AC_ERROR_ARGUMENT_SPEC_NEEDS_NAME,
+                                       .context = (void *) i};
+        }
+    }
+
+    for(size_t i = 0; i < command->n_options; i++) {
+        struct ac_option_spec const *const option = &command->options[i];
+        if(option->long_name == NULL) {
+            return (struct ac_status) {.code    = AC_ERROR_OPTION_SPEC_NEEDS_NAME,
+                                       .context = (void *) i};
+        }
+        if(!_ac_string_is_alpha(option->long_name, strnlen(option->long_name, MAX_STRING_LEN))) {
+            return (struct ac_status) {.code    = AC_ERROR_OPTION_LONG_NAME_INVALID,
+                                       .context = (void *) i};
+        }
+        if(option->has_short_name && !_ac_char_is_alpha(option->short_name)) {
+            return (struct ac_status) {.code    = AC_ERROR_OPTION_SHORT_NAME_INVALID,
+                                       .context = (void *) i};
+        }
+        if(option->is_flag && option->required) {
+            return (struct ac_status) {.code    = AC_ERROR_OPTION_FLAG_AND_REQUIRED,
+                                       .context = (void *) i};
+        }
+    }
+
+    return (struct ac_status) {.code = AC_ERROR_SUCCESS};
+}
+
+/// @brief Determine if the provided `command` is a valid multi-command spec, therefore may safely
+/// be passed to `ac_parse_multicommand`.
+/// @result `AC_ERROR_SUCCESS` when the `command` is valid.
+static struct ac_status ac_validate_multicommand(struct ac_multicommand_spec const *const command) {
+    if(command == NULL) {
+        return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
+    }
+
+    for(size_t i = 0; i < command->n_subcommands; i++) {
+        if(command->subcommands[i].name == NULL) {
+            return (struct ac_status) {.code    = AC_ERROR_MULTICOMMAND_NEEDS_NAME,
+                                       .context = (void *) i};
+        }
+
+        switch(command->subcommands[i].type) {
+            case COMMAND_TERMINAL: {
+                struct ac_status const result =
+                    ac_validate_command(command->subcommands->terminal.command);
+                if(!ac_status_is_success(result)) {
+                    return result;
+                }
+            }
+            case COMMAND_PARENT: {
+                struct ac_status const result =
+                    ac_validate_multicommand(command->subcommands->parent.subcommands);
+                if(!ac_status_is_success(result)) {
+                    return result;
+                }
+            }
+        }
+    }
+
+    return (struct ac_status) {.code = AC_ERROR_SUCCESS};
 }

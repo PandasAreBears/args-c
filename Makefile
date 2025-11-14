@@ -12,20 +12,8 @@ SHELL = zsh
 test: $(ARG_C_HEADER) $(ARG_C_TEST)
 	clang -o args-c-test -g -O0 test.c
 
-docs: $(VENV)/.installed
-	$(ACTIVATE) && \
-	$(PYTHON) m.css/documentation/doxygen.py Doxyfile-mcss
-
-$(VENV)/requirements.txt:
-	@echo jinja2 > $@
-	@echo Pygments >> $@
-
-$(VENV)/.installed: $(VENV) $(VENV)/requirements.txt
-	$(VENV)/bin/pip install -r $(VENV)/requirements.txt
-	@touch $@
-
-$(VENV):
-	python3 -m venv $(VENV)
+docs: 
+	doxygen Doxyfile
 
 
 clean:

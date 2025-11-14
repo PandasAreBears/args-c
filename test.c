@@ -54,8 +54,8 @@ static void test_command_1() {
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command1;
-    enum ac_error                       result = ac_parse_command(0, argv1, command_ptr, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    struct ac_status                    result = ac_parse_command(0, argv1, command_ptr, &args);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -64,7 +64,7 @@ static void test_command_1() {
 
     char const *const argv2[] = {"--value"};
     result                    = ac_parse_command(1, argv2, command_ptr, &args);
-    assert_int_eq(result, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
+    assert_int_eq(result.code, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -73,7 +73,7 @@ static void test_command_1() {
 
     char const *const argv3[] = {"name2"};
     result                    = ac_parse_command(1, argv3, command_ptr, &args);
-    assert_int_eq(result, AC_ERROR_ARGUMENT_EXCEEDED_SPEC);
+    assert_int_eq(result.code, AC_ERROR_ARGUMENT_EXCEEDED_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -104,8 +104,8 @@ static void test_command_2() {
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command2;
-    enum ac_error                       result      = ac_parse_command(0, argv1, &command2, &args);
-    assert_int_eq(result, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
+    struct ac_status                    result      = ac_parse_command(0, argv1, &command2, &args);
+    assert_int_eq(result.code, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -114,7 +114,7 @@ static void test_command_2() {
 
     char const *const argv2[] = {"--apple"};
     result                    = ac_parse_command(1, argv2, &command2, &args);
-    assert_int_eq(result, AC_ERROR_OPTION_VALUE_EXPECTED);
+    assert_int_eq(result.code, AC_ERROR_OPTION_VALUE_EXPECTED);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -123,7 +123,7 @@ static void test_command_2() {
 
     char const *const argv3[] = {"--apple", "mmm"};
     result                    = ac_parse_command(2, argv3, &command2, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 1UL);
@@ -133,7 +133,7 @@ static void test_command_2() {
 
     char const *const argv4[] = {"-a", "mmm"};
     result                    = ac_parse_command(2, argv4, &command2, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 1UL);
@@ -143,7 +143,7 @@ static void test_command_2() {
 
     char const *const argv5[] = {"-a", "-b"};
     result                    = ac_parse_command(2, argv5, &command2, &args);
-    assert_int_eq(result, AC_ERROR_OPTION_VALUE_EXPECTED);
+    assert_int_eq(result.code, AC_ERROR_OPTION_VALUE_EXPECTED);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -152,7 +152,7 @@ static void test_command_2() {
 
     char const *const argv6[] = {"-b", "bbb"};
     result                    = ac_parse_command(2, argv6, &command2, &args);
-    assert_int_eq(result, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
+    assert_int_eq(result.code, AC_ERROR_OPTION_NAME_REQUIRED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -161,7 +161,7 @@ static void test_command_2() {
 
     char const *const argv7[] = {"--dragon", "dddd"};
     result                    = ac_parse_command(2, argv7, &command2, &args);
-    assert_int_eq(result, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
+    assert_int_eq(result.code, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -170,7 +170,7 @@ static void test_command_2() {
 
     char const *const argv8[] = {"", "dddd"};
     result                    = ac_parse_command(2, argv7, &command2, &args);
-    assert_int_eq(result, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
+    assert_int_eq(result.code, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -212,8 +212,8 @@ static void test_command_3() {
     char const *const                   argv1[]     = {};
     struct ac_command                   args        = {0};
     struct ac_command_spec const *const command_ptr = &command3;
-    enum ac_error                       result      = ac_parse_command(0, argv1, &command3, &args);
-    assert_int_eq(result, AC_ERROR_ARGUMENT_NOT_FOUND);
+    struct ac_status                    result      = ac_parse_command(0, argv1, &command3, &args);
+    assert_int_eq(result.code, AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -222,7 +222,7 @@ static void test_command_3() {
 
     char const *const argv2[] = {"/path/to/a", "/path/to/b"};
     result                    = ac_parse_command(2, argv2, &command3, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 2UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -231,7 +231,7 @@ static void test_command_3() {
 
     char const *const argv3[] = {"/path/to/a", "/path/to/b", "/path/to/c"};
     result                    = ac_parse_command(3, argv3, &command3, &args);
-    assert_int_eq(result, AC_ERROR_ARGUMENT_EXCEEDED_SPEC);
+    assert_int_eq(result.code, AC_ERROR_ARGUMENT_EXCEEDED_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -240,7 +240,7 @@ static void test_command_3() {
 
     char const *const argv4[] = {"/path/to/a", "/path/to/b", "--banana", "5"};
     result                    = ac_parse_command(4, argv4, &command3, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, command_ptr);
     assert_sizet_eq(args.n_arguments, 2UL);
     assert_sizet_eq(args.n_options, 1UL);
@@ -292,8 +292,8 @@ static void test_command_4() {
 
     char const *const argv1[] = {""};
     struct ac_command args    = {0};
-    enum ac_error     result  = ac_parse_multicommand(1, argv1, &command4, &args);
-    assert_int_eq(result, AC_ERROR_COMMAND_NAME_INVALID);
+    struct ac_status  result  = ac_parse_multicommand(1, argv1, &command4, &args);
+    assert_int_eq(result.code, AC_ERROR_COMMAND_NAME_INVALID);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -302,7 +302,7 @@ static void test_command_4() {
 
     char const *const argv2[] = {"subcommand3"};
     result                    = ac_parse_multicommand(1, argv2, &command4, &args);
-    assert_int_eq(result, AC_ERROR_COMMAND_NAME_REQUIRED);
+    assert_int_eq(result.code, AC_ERROR_COMMAND_NAME_REQUIRED);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -311,7 +311,7 @@ static void test_command_4() {
 
     char const *const argv3[] = {"blah"};
     result                    = ac_parse_multicommand(1, argv3, &command4, &args);
-    assert_int_eq(result, AC_ERROR_COMMAND_NAME_NOT_IN_SPEC);
+    assert_int_eq(result.code, AC_ERROR_COMMAND_NAME_NOT_IN_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -320,7 +320,7 @@ static void test_command_4() {
 
     char const *const argv4[] = {"command1"};
     result                    = ac_parse_multicommand(1, argv4, &command4, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, &command1);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -329,7 +329,7 @@ static void test_command_4() {
 
     char const *const argv5[] = {"command2", "--apple", "5"};
     result                    = ac_parse_multicommand(3, argv5, &command4, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, &command2);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 1UL);
@@ -339,7 +339,7 @@ static void test_command_4() {
     char const *const argv6[] = {"subcommand3", "command3", "/path/to/a",
                                  "/path/to/b",  "--banana", "10"};
     result                    = ac_parse_multicommand(6, argv6, &command4, &args);
-    assert_int_eq(result, AC_ERROR_SUCCESS);
+    assert_int_eq(result.code, AC_ERROR_SUCCESS);
     assert_ptr_eq(args.command, &command3);
     assert_sizet_eq(args.n_arguments, 2UL);
     assert_sizet_eq(args.n_options, 1UL);
