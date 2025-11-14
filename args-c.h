@@ -29,7 +29,7 @@ enum {
     MAX_NUM_OPTIONS = 0x100,
 };
 
-enum ac_error_code {
+enum ac_status_code {
     /// @brief Operation success.
     /// @par Context: None
     AC_ERROR_SUCCESS,
@@ -80,51 +80,101 @@ enum ac_error_code {
     AC_ERROR_ARGUMENT_EXPECTED_IN_SPEC,
 };
 
-struct ac_error {
-    enum ac_error_code code;
-    void              *context;
+/// @brief Describes the result of an args-c operation.
+struct ac_status {
+    /// @brief A code that indicates the result of an operation.
+    enum ac_status_code code;
+    /// @brief A status code specific context value that can be used to debug the cause of the
+    /// specified status code.
+    /// @par The context values are described by documentation in the @c ac_status_code enum.
+    void *context;
 };
 
+/// @brief Encapsulates an argument specification.
+/// @par In args-c, an 'argument' is a required positional value. For example, the file argument to
+/// unix "cat <file>".
+/// @par The caller provides argument specifications as part of the @c ac_command_spec structure
+/// which is a parameter to @c ac_command_parse.
 struct ac_argument_spec {
+    /// @brief The name of this argument. This name only has semantic value, and won't appear user's
+    /// command.
     char *name;
+    /// @brief A help string that will appear in the @c ac_command_help output.
     char *help;
 };
 
+/// @brief Encapsulates an option specification.
+/// @par In args-c, an 'option' is a named value. For example, the input argument to unix "sed -i
+/// <file>".
+/// @par Options must have a 'long name' which will be used on the command line as --name.
+/// Optionally, a short name may also be specified and the user can use either interchangeably.
 struct ac_option_spec {
+    /// @brief A help string that will appear in the @c ac_command_help output.
     char *help;
+    /// @brief The long name of this option.
     char *long_name;
-    bool  has_short_name;
-    char  short_name;
-    bool  is_flag; // when false, a value is implicitly required.
-    bool  required;
+    /// @brief @c true when this option has a short name.
+    bool has_short_name;
+    /// @brief The short name of this option when @c has_short_name is @c true.
+    char short_name;
+    /// @brief Whether this option is a 'flag' value. Non-flag options expect a value after their
+    /// --name in a command.
+    /// @par When @c false, a value is implicitly required.
+    bool is_flag;
+    /// @brief Whether this option is mandatory in the command.
+    bool required;
 };
 
+/// @brief Encapsulates a command specification.
+/// @par This structure is passed to @c ac_parse_command to describe the structure of the command to
+/// be parsed.
 struct ac_command_spec {
+    /// @brief A help string that will appear in the @c ac_command_help output.
     char *help;
 
-    // optional values to assign context or uniquely identify this command.
+    /// @brief An optional value to assign context or uniquely identify this command.
     size_t id;
-    void  *context;
+    /// @brief An optional value to assign context or uniquely identify this command.
+    void *context;
 
-    size_t                   n_arguments;
+    /// @brief The number of arguments that this command expects.
+    size_t n_arguments;
+    /// @brief An array of arguments for this command. Must contain exactly @c n_arguments elements.
     struct ac_argument_spec *arguments;
 
-    size_t                 n_options;
+    /// @brief The number of options that this command expects.
+    size_t n_options;
+    /// @brief An array of options for this command. Must contain exactly @c n_options elements.
     struct ac_option_spec *options;
 };
 
+/// @brief Describes whether a command in a multi-command points to another multi-command or just a
+/// regular command.
 enum ac_command_type {
+    /// @brief An @c ac_command_spec value.
     COMMAND_TERMINAL,
+    /// @brief An @c ac_multicommand_spec value.
     COMMAND_PARENT,
 };
 
+/// @brief Encapsulates a multi-command specification.
+/// @par This structure is passed to @c ac_parse_multicommand to describe the structure of the
+/// multi-command to be parsed.
 struct ac_multicommand_spec {
+    /// @brief A help string that will appear in the @c ac_multicommand_help output.
     char *help;
 
+    /// @brief The number of commands that this multi-command encapsulates.
     size_t n_subcommands;
+    /// @brief An array of subcommand for this command. Must contain exactly @c n_subcommands
+    /// elements.
     struct ac_multicommand_subcommand {
-        char                *name;
+        /// @brief The name of this multi-command. This is the name provided by the user to invoke
+        /// this subcommand.
+        char *name;
+        /// @brief Indicates whether this sub-command is another multi-command or just a command.
         enum ac_command_type type;
+        /// @brief The multi-command or command itself.
         union {
             struct {
                 struct ac_command_spec *command;
@@ -133,35 +183,47 @@ struct ac_multicommand_spec {
             struct {
                 struct ac_multicommand_spec *subcommands;
             } parent;
-        };
+        } command;
     } *subcommands;
 };
 
+/// @brief An output argument returned from parsing a user command.
 struct ac_argument {
+    /// @brief A pointer to the argument specification that made this argument parseable.
     struct ac_argument_spec const *argument;
-    char                          *value;
+    /// @brief The value provided for this argument.
+    char *value;
 };
 
+/// @brief An output option returned from parsing a user command.
 struct ac_option {
+    /// @brief A pointer to the option specification that made this argument parseable.
     struct ac_option_spec const *option;
-    char                        *value;
+    /// @brief The value provided to the this option, only when @c option->is_flag is @c false.
+    char *value;
 };
 
+/// @brief An output command returned from parsing a user command.
 struct ac_command {
+    /// @brief A pointer to the command specification used to parse the user input.
     struct ac_command_spec const *command;
-    size_t                        n_arguments;
-    struct ac_argument           *arguments;
-    size_t                        n_options;
-    struct ac_option             *options;
+    /// @brief The number of arguments parsed from the user input.
+    size_t n_arguments;
+    /// @brief An array of arguments with @c n_arguments elements.
+    struct ac_argument *arguments;
+    /// @brief The number of options parsed from the user input.
+    size_t n_options;
+    /// @brief An array of options with @c n_options elements.
+    struct ac_option *options;
 };
 
-static bool ac_char_is_alpha(char const target) {
+inline static bool _ac_char_is_alpha(char const target) {
     return 'A' <= target && target <= 'z';
 }
 
-static bool ac_string_is_alpha(char const *const target, size_t const length) {
+inline static bool _ac_string_is_alpha(char const *const target, size_t const length) {
     for(size_t i = 0; i < strnlen(target, length); i++) {
-        if(!ac_char_is_alpha(target[i])) {
+        if(!_ac_char_is_alpha(target[i])) {
             return false;
         }
     }
@@ -169,9 +231,19 @@ static bool ac_string_is_alpha(char const *const target, size_t const length) {
     return true;
 }
 
-static struct ac_error ac_parse_command(int const argc, char const *const *const argv,
-                                        struct ac_command_spec const *const command,
-                                        struct ac_command *const            args) {
+/// @brief Parse user input using the provided @p command specification.
+/// @param argc The number of elements in @p argv
+/// @param argv The user input to be parsed. Must contain exactly @p argc elements.
+/// @note When parsing arguments from `int main(int argc, char **argv)`, the caller will
+/// typically want to cut the executable path (element 0) from the @p argv array when calling this
+/// function.
+/// @param command The command specification which describes how to parse @p argv .
+/// @param args An output structure that contains the parsed values when the return code is @c
+/// AC_ERROR_SUCCESS.
+/// @result @c AC_ERROR_SUCCESS when the user input is successfully parsed.
+static struct ac_status ac_parse_command(int const argc, char const *const *const argv,
+                                         struct ac_command_spec const *const command,
+                                         struct ac_command *const            args) {
     if(argv == NULL || command == NULL || args == NULL) {
         return {.code = AC_ERROR_INVALID_PARAMETER};
     }
@@ -203,14 +275,14 @@ static struct ac_error ac_parse_command(int const argc, char const *const *const
         // need to check for only alpha characters because e.g. '-1' is a valid
         // value.
         if(strlens[i] >= 3 && argv[i][0] == '-' && argv[i][1] == '-' &&
-           ac_string_is_alpha(&argv[i][2], strlens[i])) {
+           _ac_string_is_alpha(&argv[i][2], strlens[i])) {
             tags[i] = TAG_LONG_OPTION;
             n_options++;
             arguments_complete = true;
             continue;
         }
 
-        if(strlens[i] == 2 && argv[i][0] == '-' && ac_char_is_alpha(argv[i][1])) {
+        if(strlens[i] == 2 && argv[i][0] == '-' && _ac_char_is_alpha(argv[i][1])) {
             tags[i] = TAG_SHORT_OPTION;
             n_options++;
             arguments_complete = true;
@@ -356,9 +428,19 @@ static struct ac_error ac_parse_command(int const argc, char const *const *const
     return {.code = AC_ERROR_SUCCESS};
 }
 
-static struct ac_error ac_parse_multicommand(int const argc, char const *const *const argv,
-                                             struct ac_multicommand_spec const *const root,
-                                             struct ac_command *const                 args) {
+/// @brief Parse user input using the provided @p root multi-command specification.
+/// @param argc The number of elements in @p argv
+/// @param argv The user input to be parsed. Must contain exactly @p argc elements.
+/// @note When parsing arguments from @c 'int main(int argc, char **argv)', the caller will
+/// typically want to cut the executable path (element 0) from the @p argv array when calling this
+/// function.
+/// @param root The multi-command specification which describes how to parse @p argv .
+/// @param args An output structure that contains the parsed values when the return code is @c
+/// AC_ERROR_SUCCESS.
+/// @result @c AC_ERROR_SUCCESS when the user input is successfully parsed.
+static struct ac_status ac_parse_multicommand(int const argc, char const *const *const argv,
+                                              struct ac_multicommand_spec const *const root,
+                                              struct ac_command *const                 args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
         return {.code = AC_ERROR_INVALID_PARAMETER, .context = NULL};
     }
@@ -368,8 +450,8 @@ static struct ac_error ac_parse_multicommand(int const argc, char const *const *
     }
 
     // Figure out how many of the arguments are multi-command names.
-    enum ac_error_code result          = AC_ERROR_SUCCESS;
-    size_t             n_command_names = 0;
+    enum ac_status_code result          = AC_ERROR_SUCCESS;
+    size_t              n_command_names = 0;
     for(size_t i = 0; i < argc; i++) {
         size_t namelen = strnlen(argv[i], MAX_STRING_LEN);
         if(namelen == 0 && n_command_names == 0) {
@@ -395,7 +477,7 @@ static struct ac_error ac_parse_multicommand(int const argc, char const *const *
                 found = true;
 
                 if(curr_node->subcommands[j].type == COMMAND_TERMINAL) {
-                    command = curr_node->subcommands[j].terminal.command;
+                    command = curr_node->subcommands[j].command.terminal.command;
                     break;
                 }
 
@@ -405,7 +487,7 @@ static struct ac_error ac_parse_multicommand(int const argc, char const *const *
                 }
 
                 // Otherwise we've found a matching subcommand, progress to the next node.
-                curr_node = curr_node->subcommands[j].parent.subcommands;
+                curr_node = curr_node->subcommands[j].command.parent.subcommands;
             }
         }
 
@@ -419,8 +501,8 @@ static struct ac_error ac_parse_multicommand(int const argc, char const *const *
     return ac_parse_command(argc - i, &argv[i], command, args);
 }
 
-static size_t ac_strcpy_safe(char dst[], char const src[], size_t const offset,
-                             size_t const dst_len) {
+static size_t _ac_strcpy_safe(char dst[], char const src[], size_t const offset,
+                              size_t const dst_len) {
     size_t const src_len = strnlen(src, MAX_STRING_LEN);
 
     if(offset + src_len + 1 >= dst_len) {
@@ -432,6 +514,9 @@ static size_t ac_strcpy_safe(char dst[], char const src[], size_t const offset,
     return src_len;
 }
 
+/// @brief Generate a help text string for the given @p command specification
+/// @param command The command to generate a help string for.
+/// @result A help string if successful, otherwise @c NULL.
 static char *ac_command_help(struct ac_command_spec const *const command) {
     char *const help = (char *) malloc(HELP_BUFFER_SZ);
     if(help == NULL) {
@@ -439,12 +524,12 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
     }
 
     size_t cursor = 0;
-    cursor += ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
-    cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+    cursor += _ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
+    cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
 
     if(command->n_arguments > 0) {
         assert(command->n_arguments <= MAX_NUM_ARGS);
-        cursor += ac_strcpy_safe(help, "\nArguments:\n", cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, "\nArguments:\n", cursor, HELP_BUFFER_SZ);
 
         size_t max_argument_name_len = 0;
         for(size_t i = 0; i < command->n_arguments; i++) {
@@ -461,23 +546,23 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
             assert(name != NULL);
 
             size_t const name_len = strnlen(name, MAX_STRING_LEN);
-            cursor += ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
-            cursor += ac_strcpy_safe(help, name, cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, name, cursor, HELP_BUFFER_SZ);
             for(size_t j = 0; j < (max_argument_name_len - name_len) + 1; j++) {
-                cursor += ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
             }
 
             char *arghelp = command->arguments[i].help;
             if(arghelp != NULL) {
-                cursor += ac_strcpy_safe(help, arghelp, cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, arghelp, cursor, HELP_BUFFER_SZ);
             }
-            cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
         }
     }
 
     if(command->n_options > 0) {
         assert(command->n_options <= MAX_NUM_OPTIONS);
-        cursor += ac_strcpy_safe(help, "\nOptions:\n", cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, "\nOptions:\n", cursor, HELP_BUFFER_SZ);
 
         bool   any_required        = false;
         size_t max_option_name_len = 0;
@@ -496,40 +581,43 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
         for(size_t i = 0; i < command->n_options; i++) {
             struct ac_option_spec const *const option = &command->options[i];
 
-            cursor += ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
 
             if(option->has_short_name) {
-                cursor += ac_strcpy_safe(help, "-", cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, "-", cursor, HELP_BUFFER_SZ);
                 help[cursor++] = option->short_name;
-                cursor += ac_strcpy_safe(help, ", ", cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, ", ", cursor, HELP_BUFFER_SZ);
             } else {
-                cursor += ac_strcpy_safe(help, "    ", cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, "    ", cursor, HELP_BUFFER_SZ);
             }
 
             char const *const long_name = option->long_name;
             assert(long_name != NULL);
 
             size_t const name_len = strnlen(long_name, MAX_STRING_LEN);
-            cursor += ac_strcpy_safe(help, "--", cursor, HELP_BUFFER_SZ);
-            cursor += ac_strcpy_safe(help, long_name, cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, "--", cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, long_name, cursor, HELP_BUFFER_SZ);
             for(size_t j = 0; j < (max_option_name_len - name_len) + 1; j++) {
-                cursor += ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
             }
 
             char const *const arghelp = option->help;
             if(arghelp != NULL) {
-                cursor += ac_strcpy_safe(help, arghelp, cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, arghelp, cursor, HELP_BUFFER_SZ);
             }
             if(option->required) {
-                cursor += ac_strcpy_safe(help, " (required)", cursor, HELP_BUFFER_SZ);
+                cursor += _ac_strcpy_safe(help, " (required)", cursor, HELP_BUFFER_SZ);
             }
-            cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
         }
     }
 
     return help;
 }
 
+/// @brief Generate a help text string for the given @p command multi-command specification
+/// @param command The multi-command to generate a help string for.
+/// @result A help string if successful, otherwise @c NULL.
 static char *ac_multicommand_help(struct ac_multicommand_spec const *const command) {
     char *const help = (char *) malloc(HELP_BUFFER_SZ);
     if(help == NULL) {
@@ -539,8 +627,8 @@ static char *ac_multicommand_help(struct ac_multicommand_spec const *const comma
     size_t cursor = 0;
 
     if(command->help != NULL) {
-        cursor += ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
-        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
     }
 
     size_t max_command_name_len = 0;
@@ -550,33 +638,34 @@ static char *ac_multicommand_help(struct ac_multicommand_spec const *const comma
         max_command_name_len  = name_len > max_command_name_len ? name_len : max_command_name_len;
     }
 
-    cursor += ac_strcpy_safe(help, "\nCommands:\n", cursor, HELP_BUFFER_SZ);
+    cursor += _ac_strcpy_safe(help, "\nCommands:\n", cursor, HELP_BUFFER_SZ);
     for(size_t i = 0; i < command->n_subcommands; i++) {
-        cursor += ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
-        cursor += ac_strcpy_safe(help, command->subcommands[i].name, cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, "  ", cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, command->subcommands[i].name, cursor, HELP_BUFFER_SZ);
 
         size_t const name_len = strnlen(command->subcommands[i].name, MAX_STRING_LEN);
         for(size_t j = 0; j < (max_command_name_len - name_len) + 1; j++) {
-            cursor += ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, " ", cursor, HELP_BUFFER_SZ);
         }
 
         switch(command->subcommands[i].type) {
             case COMMAND_TERMINAL: {
-                if(command->subcommands[i].terminal.command->help) {
-                    cursor += ac_strcpy_safe(help, command->subcommands[i].terminal.command->help,
-                                             cursor, HELP_BUFFER_SZ);
+                if(command->subcommands[i].command.terminal.command->help) {
+                    cursor += _ac_strcpy_safe(help, command->subcommands[i].command.terminal.command->help,
+                                              cursor, HELP_BUFFER_SZ);
                 }
                 break;
             }
             case COMMAND_PARENT: {
-                if(command->subcommands[i].parent.subcommands->help) {
-                    cursor += ac_strcpy_safe(help, command->subcommands[i].parent.subcommands->help,
-                                             cursor, HELP_BUFFER_SZ);
+                if(command->subcommands[i].command.parent.subcommands->help) {
+                    cursor +=
+                        _ac_strcpy_safe(help, command->subcommands[i].command.parent.subcommands->help,
+                                        cursor, HELP_BUFFER_SZ);
                 }
                 break;
             }
         }
-        cursor += ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
     }
 
     return help;
