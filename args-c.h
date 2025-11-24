@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define __maybe_unused __attribute__((unused))
+
 enum {
     /// @brief The maximum length of a string being parsed by args-c (in any context).
     MAX_STRING_LEN = 0x1000,
@@ -271,9 +273,10 @@ inline static bool _ac_string_is_alpha(char const *const target, size_t const le
 /// @param args An output structure that contains the parsed values when the return code is @c
 /// AC_ERROR_SUCCESS.
 /// @result @c AC_ERROR_SUCCESS when the user input is successfully parsed.
-static struct ac_status ac_command_parse(int const argc, char const *const *const argv,
-                                         struct ac_command_spec const *const command,
-                                         struct ac_command *const            args) {
+__maybe_unused static struct ac_status ac_command_parse(int const                           argc,
+                                                        char const *const *const            argv,
+                                                        struct ac_command_spec const *const command,
+                                                        struct ac_command *const            args) {
 #define AC_STATUS(...) (struct ac_status){.single = command, ##__VA_ARGS__};
 
     if(argv == NULL || command == NULL || args == NULL) {
@@ -477,9 +480,10 @@ static struct ac_status ac_command_parse(int const argc, char const *const *cons
 /// @param args An output structure that contains the parsed values when the return code is @c
 /// AC_ERROR_SUCCESS.
 /// @result @c AC_ERROR_SUCCESS when the user input is successfully parsed.
-static struct ac_status ac_multi_command_parse(int const argc, char const *const *const argv,
-                                               struct ac_multi_command_spec const *const root,
-                                               struct ac_command *const                  args) {
+__maybe_unused static struct ac_status
+ac_multi_command_parse(int const argc, char const *const *const argv,
+                       struct ac_multi_command_spec const *const root,
+                       struct ac_command *const                  args) {
     if(argc == 0 || argv == NULL || root == NULL || args == NULL) {
         return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER, .multi = root};
     }
@@ -562,7 +566,7 @@ static size_t _ac_strcpy_safe(char dst[], char const src[], size_t const offset,
 /// @brief Generate a help text string for the given @p command specification
 /// @param command The command to generate a help string for.
 /// @result A help string if successful, otherwise @c NULL.
-static char *ac_command_help(struct ac_command_spec const *const command) {
+__maybe_unused static char *ac_command_help(struct ac_command_spec const *const command) {
     char *const help = (char *) malloc(HELP_BUFFER_SZ);
     if(help == NULL) {
         return NULL;
@@ -659,7 +663,8 @@ static char *ac_command_help(struct ac_command_spec const *const command) {
 /// @brief Generate a help text string for the given @p command multi-command specification
 /// @param command The multi-command to generate a help string for.
 /// @result A help string if successful, otherwise @c NULL.
-static char *ac_multi_command_help(struct ac_multi_command_spec const *const command) {
+__maybe_unused static char *
+ac_multi_command_help(struct ac_multi_command_spec const *const command) {
     char *const help = (char *) malloc(HELP_BUFFER_SZ);
     if(help == NULL) {
         return NULL;
@@ -714,7 +719,8 @@ static char *ac_multi_command_help(struct ac_multi_command_spec const *const com
 /// @brief Determine if the provided `command` is a valid spec, therefore may safely be passed to
 /// `ac_command_parse`.
 /// @result `AC_ERROR_SUCCESS` when the `command` is valid.
-static struct ac_status ac_command_validate(struct ac_command_spec const *const command) {
+__maybe_unused static struct ac_status
+ac_command_validate(struct ac_command_spec const *const command) {
     if(command == NULL) {
         return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
     }
@@ -753,7 +759,7 @@ static struct ac_status ac_command_validate(struct ac_command_spec const *const 
 /// @brief Determine if the provided `command` is a valid multi-command spec, therefore may safely
 /// be passed to `ac_multi_command_parse`.
 /// @result `AC_ERROR_SUCCESS` when the `command` is valid.
-static struct ac_status
+__maybe_unused static struct ac_status
 ac_multi_command_validate(struct ac_multi_command_spec const *const command) {
     if(command == NULL) {
         return (struct ac_status) {.code = AC_ERROR_INVALID_PARAMETER};
@@ -789,8 +795,8 @@ ac_multi_command_validate(struct ac_multi_command_spec const *const command) {
 
 /// @brief Extracts an argument from the parsed `command` structure.
 /// @result The argument value, or `NULL` if the `name` wasn't in the `command`'s arguments.
-static struct ac_argument *ac_extract_argument(struct ac_command const *const command,
-                                               char const *const              name) {
+__maybe_unused static struct ac_argument *
+ac_extract_argument(struct ac_command const *const command, char const *const name) {
     for(size_t i = 0; i < command->n_arguments; i++) {
         if(0 == strncmp(command->arguments[i].argument->name, name, MAX_STRING_LEN)) {
             return &command->arguments[i];
@@ -802,8 +808,8 @@ static struct ac_argument *ac_extract_argument(struct ac_command const *const co
 
 /// @brief Extracts an option from the parsed `command` structure.
 /// @result The option value, or `NULL` if the `name` wasn't in the `command`'s options.
-static struct ac_option *ac_extract_option(struct ac_command const *const command,
-                                           char const *const              long_name) {
+__maybe_unused static struct ac_option *ac_extract_option(struct ac_command const *const command,
+                                                          char const *const long_name) {
     for(size_t i = 0; i < command->n_options; i++) {
         if(0 == strncmp(command->options[i].option->long_name, long_name, MAX_STRING_LEN)) {
             return &command->options[i];
@@ -816,7 +822,7 @@ static struct ac_option *ac_extract_option(struct ac_command const *const comman
 /// @brief Generates a helpful error string when `results.code` != `AC_ERROR_SUCCESS`.
 /// @remark This function should always be used after `ac_command_parse` if an error occurs.
 /// @return An error string owned by the caller.
-static char *ac_status_string(struct ac_status result) {
+__maybe_unused static char *ac_status_string(struct ac_status result) {
     if(result.code == AC_ERROR_SUCCESS) {
         return NULL;
     }
@@ -910,7 +916,7 @@ static char *ac_status_string(struct ac_status result) {
 
 /// @brief Once the caller is done with the `ac_command` structure, it's underlying resources should
 /// be released using this function.
-static void ac_command_release(struct ac_command *command) {
+__maybe_unused static void ac_command_release(struct ac_command *command) {
     if(command == NULL) {
         return;
     }

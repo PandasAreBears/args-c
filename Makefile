@@ -4,7 +4,7 @@ COMMAND_EXAMPLE = example_command.c
 MULTI_EXAMPLE = multi_command.c 
 .ONESHELL:
 
-CC_FLAGS := -std=c11 -g -O0 -Wall -Werror -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-function
+CC_FLAGS := -std=c11 -g -O0 -Wall -Werror -Wno-gnu-zero-variadic-macro-arguments 
 
 .PHONY: test docs clean
 
