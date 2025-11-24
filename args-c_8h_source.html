@@ -344,8 +344,8 @@ $(document).ready(function(){initNavTree('args-c_8h_source.html',''); initResiza
 <div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span> </div>
 <div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>    <span class="comment">// Arguments are assigned in the order that they appear in the command.</span></div>
 <div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    <span class="keywordflow">for</span>(<span class="keywordtype">size_t</span> i = 0; i &lt; n_arguments; i++) {</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>        arguments-&gt;<a class="code hl_variable" href="structac__argument.html#a6d6a84e64e5238540c733d04f52494e2">value</a>    = strdup(argv[i]);</div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>        arguments-&gt;<a class="code hl_variable" href="structac__argument.html#a48cdd61c2a289d45f78455fbe4966005">argument</a> = &amp;command-&gt;<a class="code hl_variable" href="structac__command__spec.html#aae0549f3a74987dafd24cfac59066460">arguments</a>[i];</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>        arguments[i].<a class="code hl_variable" href="structac__argument.html#a6d6a84e64e5238540c733d04f52494e2">value</a>    = strdup(argv[i]);</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>        arguments[i].<a class="code hl_variable" href="structac__argument.html#a48cdd61c2a289d45f78455fbe4966005">argument</a> = &amp;command-&gt;<a class="code hl_variable" href="structac__command__spec.html#aae0549f3a74987dafd24cfac59066460">arguments</a>[i];</div>
 <div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    }</div>
 <div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span> </div>
 <div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    <span class="keyword">struct </span><a class="code hl_struct" href="structac__option.html">ac_option</a> *options =</div>
