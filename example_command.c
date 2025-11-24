@@ -22,7 +22,7 @@ int main(int const argc, char const *const argv[]) {
     if(argc <= 1) {
         // The @c ac_command_help function is used for generating a help string. This returns an
         // owned string, so the caller is responsible outputting and freeing the buffer.
-        printf("%s", ac_command_help(&example_command));
+        printf("%s", ac_command_help(&example_command, argv[0]));
         return -1;
     }
 

@@ -565,8 +565,11 @@ static size_t _ac_strcpy_safe(char dst[], char const src[], size_t const offset,
 
 /// @brief Generate a help text string for the given @p command specification
 /// @param command The command to generate a help string for.
+/// @param toolpath [optional] The path to the binary that executes this tools. If not `NULL`, a
+///                 usage line will be inserted into the help message.
 /// @result A help string if successful, otherwise @c NULL.
-__maybe_unused static char *ac_command_help(struct ac_command_spec const *const command) {
+__maybe_unused static char *ac_command_help(struct ac_command_spec const *const command,
+                                            char const *const                   toolpath) {
     char *const help = (char *) malloc(HELP_BUFFER_SZ);
     if(help == NULL) {
         return NULL;
@@ -575,6 +578,20 @@ __maybe_unused static char *ac_command_help(struct ac_command_spec const *const 
     size_t cursor = 0;
     cursor += _ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
     cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+
+    if(toolpath) {
+        cursor += _ac_strcpy_safe(help, "\nUsage: ", cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, toolpath, cursor, HELP_BUFFER_SZ);
+        for(size_t i = 0; i < command->n_arguments; i++) {
+            cursor += _ac_strcpy_safe(help, " <", cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, command->arguments[i].name, cursor, HELP_BUFFER_SZ);
+            cursor += _ac_strcpy_safe(help, ">", cursor, HELP_BUFFER_SZ);
+        }
+        if(command->n_options > 0) {
+            cursor += _ac_strcpy_safe(help, " {options}", cursor, HELP_BUFFER_SZ);
+        }
+        cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+    }
 
     if(command->n_arguments > 0) {
         assert(command->n_arguments <= MAX_NUM_ARGS);
@@ -662,9 +679,11 @@ __maybe_unused static char *ac_command_help(struct ac_command_spec const *const 
 
 /// @brief Generate a help text string for the given @p command multi-command specification
 /// @param command The multi-command to generate a help string for.
+/// @param toolpath [optional] The path to the binary that executes this tools. If not `NULL`, a
+///                 usage line will be inserted into the help message.
 /// @result A help string if successful, otherwise @c NULL.
-__maybe_unused static char *
-ac_multi_command_help(struct ac_multi_command_spec const *const command) {
+__maybe_unused static char *ac_multi_command_help(struct ac_multi_command_spec const *const command,
+                                                  char const *const toolpath) {
     char *const help = (char *) malloc(HELP_BUFFER_SZ);
     if(help == NULL) {
         return NULL;
@@ -675,6 +694,12 @@ ac_multi_command_help(struct ac_multi_command_spec const *const command) {
     if(command->help != NULL) {
         cursor += _ac_strcpy_safe(help, command->help, cursor, HELP_BUFFER_SZ);
         cursor += _ac_strcpy_safe(help, "\n", cursor, HELP_BUFFER_SZ);
+    }
+
+    if(toolpath) {
+        cursor += _ac_strcpy_safe(help, "\nUsage: ", cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, toolpath, cursor, HELP_BUFFER_SZ);
+        cursor += _ac_strcpy_safe(help, " {subcommands}\n", cursor, HELP_BUFFER_SZ);
     }
 
     size_t max_command_name_len = 0;
@@ -901,7 +926,7 @@ __maybe_unused static char *ac_status_string(struct ac_status result) {
     }
 
     char *help =
-        result.single ? ac_command_help(result.single) : ac_multi_command_help(result.multi);
+        result.single ? ac_command_help(result.single, NULL) : ac_multi_command_help(result.multi, NULL);
     if(help == NULL) {
         return NULL;
     }
