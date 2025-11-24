@@ -349,8 +349,8 @@ static struct ac_status ac_command_parse(int const argc, char const *const *cons
 
     // Arguments are assigned in the order that they appear in the command.
     for(size_t i = 0; i < n_arguments; i++) {
-        arguments->value    = strdup(argv[i]);
-        arguments->argument = &command->arguments[i];
+        arguments[i].value    = strdup(argv[i]);
+        arguments[i].argument = &command->arguments[i];
     }
 
     struct ac_option *options =

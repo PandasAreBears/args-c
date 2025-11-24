@@ -4,12 +4,12 @@ COMMAND_EXAMPLE = example_command.c
 MULTI_EXAMPLE = multi_command.c 
 .ONESHELL:
 
-CC_FLAGS := -std=c11 -g -O0 -Wall -Wpedantic -Werror -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-function
+CC_FLAGS := -std=c11 -g -O0 -Wall -Werror -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-function
 
 .PHONY: test docs clean
 
 test: $(ARG_C_HEADER) $(ARG_C_TEST)
-	clang -o args-c-test -g -O0 $(ARG_C_TEST)
+	clang -o args-c-test $(CC_FLAGS) $(ARG_C_TEST)
 
 docs: 
 	doxygen Doxyfile

@@ -171,8 +171,8 @@ static void test_command_2() {
     assert_ptr_eq(args.options, NULL);
 
     char const *const argv8[] = {"", "dddd"};
-    result                    = ac_command_parse(2, argv7, &command2, &args);
-    assert_int_eq(result.code, AC_ERROR_OPTION_NAME_NOT_IN_SPEC);
+    result                    = ac_command_parse(2, argv8, &command2, &args);
+    assert_int_eq(result.code, AC_ERROR_ARGUMENT_EXCEEDED_SPEC);
     assert_ptr_eq(args.command, NULL);
     assert_sizet_eq(args.n_arguments, 0UL);
     assert_sizet_eq(args.n_options, 0UL);
@@ -257,6 +257,14 @@ static void test_command_3() {
     assert_sizet_eq(args.n_options, 1UL);
     assert_ptr_neq(args.arguments, NULL);
     assert_ptr_neq(args.options, NULL);
+    struct ac_argument *fileArg = ac_extract_argument(&args, "FILE");
+    assert_ptr_neq(fileArg, NULL);
+    assert_ptr_neq(fileArg->value, NULL);
+    assert_str_eq(fileArg->value, "/path/to/a");
+    struct ac_argument *outputArg = ac_extract_argument(&args, "OUTPUT");
+    assert_ptr_neq(outputArg, NULL);
+    assert_ptr_neq(outputArg->value, NULL);
+    assert_str_eq(outputArg->value, "/path/to/b");
 
     char const *const argv5[] = {"/path/to/a", "/path/to/b", "-c"};
     result                    = ac_command_parse(3, argv5, &command3, &args);
